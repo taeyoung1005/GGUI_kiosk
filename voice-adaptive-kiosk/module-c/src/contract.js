@@ -20,6 +20,7 @@ const menuItemSchema = {
     price: { type: "number" },
     image_url: { type: "string" },
     desc: { type: "string" },
+    options: { type: "array" },
   },
   required: ["id", "name", "price"],
 };
@@ -31,11 +32,11 @@ const menuItemSchema = {
 export function buildDataContract(step, { candidates, profile }) {
   const intentByStep = {
     recommend:
-      "노인친화 키오스크 추천 화면 — 큰 카드 2~3장으로 메뉴를 추천하고 한 번의 큰 터치로 선택받는다.",
+      "Senior-friendly kiosk recommendation screen — recommend menu items as 2-3 large cards, selectable with a single big touch.",
     options:
-      "노인친화 키오스크 옵션 화면 — 온도/사이즈 등을 큰 예/아니요·큰 버튼으로 한 항목씩 고르게 한다.",
+      "Senior-friendly kiosk options screen — choose temperature/size one item at a time with large buttons.",
     confirm:
-      "노인친화 키오스크 확인 화면 — 선택을 요약하고 ‘예/아니요’ 큰 버튼으로 주문을 확정한다.",
+      "Senior-friendly kiosk confirm screen — summarize the selection and confirm the order with large Yes/No buttons.",
   };
 
   // 공통 props: 화면 제목/안내와 적응 강도(글자·여백·음성).
@@ -47,7 +48,7 @@ export function buildDataContract(step, { candidates, profile }) {
       required: true,
       description: "UI 적응 강도(주축 신호). 높을수록 글자·여백·음성안내 강화.",
     },
-    ageGroup: { schema: { type: "string", enum: ["50+", "under50"] } },
+    ageGroup: { schema: { type: "string" } },
     voiceGuide: {
       schema: { type: "string" },
       description: "speechSynthesis 로 읽어줄 음성 안내 문구(없으면 무음).",
@@ -90,8 +91,8 @@ export function buildDataContract(step, { candidates, profile }) {
       },
       actionSpec: {
         selectOption: {
-          label: "이걸로 선택",
-          description: "옵션 한 항목 선택. payload 로 {type, label} 전달.",
+          label: "Choose this",
+          description: "Select one option. Sends {type, label} as payload.",
           schema: {
             type: "object",
             properties: { type: { type: "string" }, label: { type: "string" } },
@@ -99,7 +100,7 @@ export function buildDataContract(step, { candidates, profile }) {
           },
           nextStep: "confirm",
         },
-        back: { label: "이전으로", nextStep: "recommend" },
+        back: { label: "Back", nextStep: "recommend" },
       },
     };
   }
@@ -121,13 +122,13 @@ export function buildDataContract(step, { candidates, profile }) {
       },
       actionSpec: {
         confirmYes: {
-          label: "예, 주문할게요",
+          label: "Yes, order it",
           icon: "✅",
-          description: "주문 확정 → Module B /orders(mock 결제)로 진행.",
+          description: "Confirm the order → proceed to Module B /orders (mock payment).",
           nextStep: "order",
         },
         confirmNo: {
-          label: "아니요, 다시 고를게요",
+          label: "No, choose again",
           icon: "↩️",
           nextStep: "recommend",
         },
@@ -151,8 +152,8 @@ export function buildDataContract(step, { candidates, profile }) {
     },
     actionSpec: {
       selectMenu: {
-        label: "이거 주문",
-        description: "카드 한 장 선택. payload 로 {item_id} 전달.",
+        label: "Order this",
+        description: "Select one card. Sends {item_id} as payload.",
         schema: {
           type: "object",
           properties: { item_id: { type: "string" } },
@@ -161,8 +162,8 @@ export function buildDataContract(step, { candidates, profile }) {
         nextStep: "options",
       },
       repeat: {
-        label: "다시 듣기",
-        description: "음성 안내를 다시 재생(멀티턴 보조).",
+        label: "Play again",
+        description: "Replay the voice guidance (multi-turn helper).",
       },
     },
   };

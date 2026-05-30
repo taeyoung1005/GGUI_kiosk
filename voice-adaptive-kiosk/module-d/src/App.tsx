@@ -15,7 +15,7 @@ import { USE_MOCK, apiConfig } from "./api/client";
 import { isRecordingSupported } from "./audio/recorder";
 import "./styles.css";
 
-type Mode = "static" | "adaptive";
+type Mode = "compare" | "static" | "adaptive";
 
 const STEP_ORDER: { key: string; label: string }[] = [
   { key: "voice", label: "Voice Input" },
@@ -30,19 +30,24 @@ export default function App() {
   // orchestrator 는 앱 수명 동안 단일 인스턴스
   const flow = useMemo(() => new Orchestrator(), []);
   const [state, setState] = useState<FlowState>(initialFlowState());
-  const [mode, setMode] = useState<Mode>("static");
+  const [mode, setMode] = useState<Mode>("compare");
   const [variant, setVariant] = useState<"elder" | "youth">("elder");
 
   useEffect(() => flow.subscribe(setState), [flow]);
 
   // 음성 흐름이 진행되면 자동으로 adaptive 모드로 전환
   useEffect(() => {
-    if (state.phase !== "idle") setMode("adaptive");
-  }, [state.phase]);
+    if (state.phase !== "idle" && mode === "static") setMode("compare");
+  }, [mode, state.phase]);
+
+  useEffect(() => {
+    if (state.phase === "idle") return;
+    window.scrollTo({ top: 0, left: 0, behavior: "instant" });
+  }, [state.phase, state.step]);
 
   function startVoice() {
     flow.setMockVariant(variant);
-    setMode("adaptive");
+    setMode("compare");
     flow.startVoiceOrder();
   }
 
@@ -53,14 +58,20 @@ export default function App() {
       <header className="topbar">
         <div className="brand">
           <h1>OBA Adaptive Kiosk</h1>
-          <small>Order by voice and the screen adapts to you</small>
+          <small>Before and after, on one demo screen</small>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+        <div className="header-actions">
           <span className={"badge " + (USE_MOCK ? "mock" : "live")}>
             {USE_MOCK ? "MOCK" : "LIVE"}
           </span>
           <div className="mode-toggle">
+            <button
+              className={mode === "compare" ? "active" : ""}
+              onClick={() => setMode("compare")}
+            >
+              Compare
+            </button>
             <button
               className={mode === "static" ? "active" : ""}
               onClick={() => setMode("static")}
@@ -108,14 +119,14 @@ export default function App() {
               <button
                 className={variant === "elder" ? "active" : ""}
                 onClick={() => setVariant("elder")}
-                title="50+, slower speech -> assist_level 2"
+                title="sixties, slower speech -> assist_level 2"
               >
                 Senior (Slow)
               </button>
               <button
                 className={variant === "youth" ? "active" : ""}
                 onClick={() => setVariant("youth")}
-                title="under50, faster speech -> assist_level 0"
+                title="twenties, faster speech -> assist_level 0"
               >
                 Younger (Fast)
               </button>
@@ -131,21 +142,36 @@ export default function App() {
         )}
 
         {/* 본문: 모드에 따라 일반/적응 */}
-        {mode === "static" && state.phase === "idle" ? (
-          <StaticKiosk />
-        ) : (
-          <AdaptiveKiosk flow={flow} state={state} />
-        )}
+        <section className={"kiosk-stage " + mode}>
+          {(mode === "compare" || mode === "static") && (
+            <section className="demo-pane before-pane" aria-label="Standard kiosk before screen">
+              <div className="pane-heading">
+                <div>
+                  <p>Standard / Before</p>
+                  <h2>Dense fallback kiosk</h2>
+                </div>
+                <span>Fallback</span>
+              </div>
+              <StaticKiosk />
+            </section>
+          )}
+
+          {(mode === "compare" || mode === "adaptive") && (
+            <section className="demo-pane after-pane" aria-label="Adaptive kiosk after screen">
+              <div className="pane-heading">
+                <div>
+                  <p>Adaptive / After</p>
+                  <h2>Voice-driven assist UI</h2>
+                </div>
+                <span>GGUI</span>
+              </div>
+              <AdaptiveKiosk flow={flow} state={state} />
+            </section>
+          )}
+        </section>
       </main>
 
-      <footer
-        style={{
-          padding: "12px 20px",
-          borderTop: "1px solid var(--line)",
-          color: "var(--muted)",
-          fontSize: 12,
-        }}
-      >
+      <footer className="contract-footer">
         A {apiConfig.ANALYZE_URL} · B {apiConfig.MENU_URL} · C{" "}
         {apiConfig.GGUI_URL} · Adaptation signal = behavioral assist_level, age is secondary
       </footer>

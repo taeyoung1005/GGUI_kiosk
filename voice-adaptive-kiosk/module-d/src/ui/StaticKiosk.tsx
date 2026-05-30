@@ -8,8 +8,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 import type { Menu, MenuItem } from "@contracts/types";
-import { getMenu, createOrder } from "../api/client";
-import { emojiFor, won } from "./emoji";
+import { USE_MOCK, createOrder, getMenu, menuAssetUrl } from "../api/client";
+import { artFor, emojiFor, won } from "./emoji";
 
 type Phase = "browse" | "options" | "paying" | "done";
 
@@ -106,7 +106,7 @@ export default function StaticKiosk() {
     const cur = unitTotal(selected, options);
     return (
       <div>
-        <h2 style={{ marginTop: 0 }}>
+        <h2 className="static-title">
           {emojiFor(selected)} {selected.name}
         </h2>
         <p className="hint">{selected.desc}</p>
@@ -117,9 +117,7 @@ export default function StaticKiosk() {
 
         {selected.options.map((opt) => (
           <div className="option-group" key={opt.type}>
-            <div className="o-label" style={{ fontSize: 15 }}>
-              {opt.type}
-            </div>
+            <div className="o-label static-label">{opt.type}</div>
             <div className="choices">
               {opt.choices.map((c) => (
                 <button
@@ -127,7 +125,6 @@ export default function StaticKiosk() {
                   className={
                     "choice" + (options[opt.type] === c.label ? " selected" : "")
                   }
-                  style={{ fontSize: 15, padding: 12 }}
                   onClick={() =>
                     setOptions((s) => ({ ...s, [opt.type]: c.label }))
                   }
@@ -140,19 +137,19 @@ export default function StaticKiosk() {
           </div>
         ))}
 
-        <div className="confirm-box" style={{ borderWidth: 1 }}>
-          <div className="c-total" style={{ fontSize: 18 }}>
+        <div className="confirm-box static-confirm">
+          <div className="c-total static-total">
             <span>Total</span>
             <span>{won(cur)}</span>
           </div>
         </div>
 
-        <div style={{ display: "flex", gap: 10, marginTop: 14 }}>
+        <div className="static-actions">
           <button
             className="mic-btn secondary"
             onClick={() => setPhase("browse")}
           >
-            ← Back to Menu
+            Back to Menu
           </button>
           <button className="btn-primary" onClick={pay}>
             Order and Pay
@@ -180,7 +177,12 @@ export default function StaticKiosk() {
       <div className="grid">
         {items.map((it) => (
           <button className="menu-card" key={it.id} onClick={() => pick(it)}>
-            <div className="thumb">{emojiFor(it)}</div>
+            <img
+              className="thumb"
+              src={USE_MOCK ? artFor(it) : menuAssetUrl(it.image_url)}
+              alt=""
+              aria-hidden="true"
+            />
             <div className="name">{it.name}</div>
             <div className="desc">{it.desc}</div>
             <div className="price">{won(it.price)}</div>

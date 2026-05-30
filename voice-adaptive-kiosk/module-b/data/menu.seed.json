@@ -67,6 +67,19 @@
       "desc": "A short, bold shot with deep roasted aroma.",
       "options": [
         {
+          "type": "Temperature",
+          "choices": [
+            {
+              "label": "Hot",
+              "price_delta": 0
+            },
+            {
+              "label": "Iced",
+              "price_delta": 0
+            }
+          ]
+        },
+        {
           "type": "Shot",
           "choices": [
             {
@@ -297,7 +310,7 @@
       "category": "Latte",
       "price": 5200,
       "image_url": "/img/menu/caramel-latte-006.svg",
-      "desc": "Espresso and milk finished with rich caramel.",
+      "desc": "A rich latte topped with buttery caramel flavor.",
       "options": [
         {
           "type": "Temperature",
@@ -502,130 +515,11 @@
       ]
     },
     {
-      "id": "sweet-potato-latte-009",
-      "name": "Sweet Potato Latte",
-      "category": "Latte",
-      "price": 5500,
-      "image_url": "/img/menu/sweet-potato-latte-009.svg",
-      "desc": "A creamy non-coffee latte with roasted sweet potato.",
-      "options": [
-        {
-          "type": "Temperature",
-          "choices": [
-            {
-              "label": "Hot",
-              "price_delta": 0
-            },
-            {
-              "label": "Iced",
-              "price_delta": 0
-            }
-          ]
-        },
-        {
-          "type": "Size",
-          "choices": [
-            {
-              "label": "Regular",
-              "price_delta": 0
-            },
-            {
-              "label": "Large",
-              "price_delta": 500
-            }
-          ]
-        },
-        {
-          "type": "Milk",
-          "choices": [
-            {
-              "label": "Whole Milk",
-              "price_delta": 0
-            },
-            {
-              "label": "Low-Fat Milk",
-              "price_delta": 0
-            },
-            {
-              "label": "Oat Milk",
-              "price_delta": 600
-            }
-          ]
-        },
-        {
-          "type": "Sweetness",
-          "choices": [
-            {
-              "label": "Regular",
-              "price_delta": 0
-            },
-            {
-              "label": "Less Sweet",
-              "price_delta": 0
-            },
-            {
-              "label": "Extra Sweet",
-              "price_delta": 300
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "cappuccino-010",
-      "name": "Cappuccino",
-      "category": "Coffee",
-      "price": 4800,
-      "image_url": "/img/menu/cappuccino-010.svg",
-      "desc": "Espresso topped with a thick cap of milk foam.",
-      "options": [
-        {
-          "type": "Temperature",
-          "choices": [
-            {
-              "label": "Hot",
-              "price_delta": 0
-            },
-            {
-              "label": "Iced",
-              "price_delta": 0
-            }
-          ]
-        },
-        {
-          "type": "Size",
-          "choices": [
-            {
-              "label": "Regular",
-              "price_delta": 0
-            },
-            {
-              "label": "Large",
-              "price_delta": 500
-            }
-          ]
-        },
-        {
-          "type": "Shot",
-          "choices": [
-            {
-              "label": "Single",
-              "price_delta": 0
-            },
-            {
-              "label": "Double",
-              "price_delta": 500
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "earl-grey-tea-011",
+      "id": "earl-grey-tea-009",
       "name": "Earl Grey Tea",
       "category": "Tea",
       "price": 4000,
-      "image_url": "/img/menu/earl-grey-tea-011.svg",
+      "image_url": "/img/menu/earl-grey-tea-009.svg",
       "desc": "Black tea with bright bergamot citrus notes.",
       "options": [
         {
@@ -657,12 +551,12 @@
       ]
     },
     {
-      "id": "chamomile-tea-012",
-      "name": "Chamomile Tea",
-      "category": "Tea",
-      "price": 4000,
-      "image_url": "/img/menu/chamomile-tea-012.svg",
-      "desc": "A gentle caffeine-free herbal tea with floral aroma.",
+      "id": "lemon-ade-010",
+      "name": "Lemon Ade",
+      "category": "Ade",
+      "price": 5000,
+      "image_url": "/img/menu/lemon-ade-010.svg",
+      "desc": "Sparkling lemonade with a crisp citrus bite.",
       "options": [
         {
           "type": "Temperature",
@@ -689,29 +583,6 @@
               "price_delta": 500
             }
           ]
-        }
-      ]
-    },
-    {
-      "id": "peach-iced-tea-013",
-      "name": "Peach Iced Tea",
-      "category": "Tea",
-      "price": 4200,
-      "image_url": "/img/menu/peach-iced-tea-013.svg",
-      "desc": "Cold black tea with sweet peach flavor.",
-      "options": [
-        {
-          "type": "Size",
-          "choices": [
-            {
-              "label": "Regular",
-              "price_delta": 0
-            },
-            {
-              "label": "Large",
-              "price_delta": 500
-            }
-          ]
         },
         {
           "type": "Sweetness",
@@ -733,54 +604,27 @@
       ]
     },
     {
-      "id": "lemon-ade-014",
-      "name": "Lemon Ade",
-      "category": "Ade",
-      "price": 5000,
-      "image_url": "/img/menu/lemon-ade-014.svg",
-      "desc": "Sparkling lemonade with a crisp citrus bite.",
-      "options": [
-        {
-          "type": "Size",
-          "choices": [
-            {
-              "label": "Regular",
-              "price_delta": 0
-            },
-            {
-              "label": "Large",
-              "price_delta": 500
-            }
-          ]
-        },
-        {
-          "type": "Sweetness",
-          "choices": [
-            {
-              "label": "Regular",
-              "price_delta": 0
-            },
-            {
-              "label": "Less Sweet",
-              "price_delta": 0
-            },
-            {
-              "label": "Extra Sweet",
-              "price_delta": 300
-            }
-          ]
-        }
-      ]
-    },
-    {
-      "id": "grapefruit-ade-015",
+      "id": "grapefruit-ade-011",
       "name": "Grapefruit Ade",
       "category": "Ade",
       "price": 5500,
-      "image_url": "/img/menu/grapefruit-ade-015.svg",
+      "image_url": "/img/menu/grapefruit-ade-011.svg",
       "desc": "Refreshing sparkling ade with real grapefruit pulp.",
       "options": [
         {
+          "type": "Temperature",
+          "choices": [
+            {
+              "label": "Hot",
+              "price_delta": 0
+            },
+            {
+              "label": "Iced",
+              "price_delta": 0
+            }
+          ]
+        },
+        {
           "type": "Size",
           "choices": [
             {
@@ -813,13 +657,26 @@
       ]
     },
     {
-      "id": "strawberry-smoothie-016",
+      "id": "strawberry-smoothie-012",
       "name": "Strawberry Smoothie",
       "category": "Beverage",
       "price": 5800,
-      "image_url": "/img/menu/strawberry-smoothie-016.svg",
+      "image_url": "/img/menu/strawberry-smoothie-012.svg",
       "desc": "Blended strawberry and yogurt for a cool treat.",
       "options": [
+        {
+          "type": "Temperature",
+          "choices": [
+            {
+              "label": "Hot",
+              "price_delta": 0
+            },
+            {
+              "label": "Iced",
+              "price_delta": 0
+            }
+          ]
+        },
         {
           "type": "Size",
           "choices": [
@@ -853,12 +710,48 @@
       ]
     },
     {
-      "id": "new-york-cheesecake-017",
+      "id": "new-york-cheesecake-013",
       "name": "New York Cheesecake",
       "category": "Dessert",
       "price": 6000,
-      "image_url": "/img/menu/new-york-cheesecake-017.svg",
+      "image_url": "/img/menu/new-york-cheesecake-013.svg",
       "desc": "Dense and creamy cheesecake with a buttery crust.",
+      "options": []
+    },
+    {
+      "id": "basque-cheesecake-014",
+      "name": "Basque Cheesecake",
+      "category": "Dessert",
+      "price": 6500,
+      "image_url": "/img/menu/basque-cheesecake-014.svg",
+      "desc": "Burnt-top cheesecake with a soft custard center.",
+      "options": []
+    },
+    {
+      "id": "chocolate-brownie-015",
+      "name": "Chocolate Brownie",
+      "category": "Dessert",
+      "price": 4800,
+      "image_url": "/img/menu/chocolate-brownie-015.svg",
+      "desc": "Fudgy chocolate brownie with a crisp top.",
+      "options": []
+    },
+    {
+      "id": "blueberry-muffin-016",
+      "name": "Blueberry Muffin",
+      "category": "Dessert",
+      "price": 4200,
+      "image_url": "/img/menu/blueberry-muffin-016.svg",
+      "desc": "Soft muffin packed with sweet blueberries.",
+      "options": []
+    },
+    {
+      "id": "lemon-pound-cake-017",
+      "name": "Lemon Pound Cake",
+      "category": "Dessert",
+      "price": 4500,
+      "image_url": "/img/menu/lemon-pound-cake-017.svg",
+      "desc": "Moist lemon cake with a light citrus glaze.",
       "options": []
     },
     {
@@ -917,13 +810,13 @@
       "category": "Dessert",
       "price": 7000,
       "image_url": "/img/menu/macaron-set-020.svg",
-      "desc": "A colorful box of three chewy filled macarons.",
+      "desc": "A colorful set of crisp almond macarons.",
       "options": [
         {
           "type": "Flavor",
           "choices": [
             {
-              "label": "Vanilla",
+              "label": "Assorted",
               "price_delta": 0
             },
             {
@@ -931,11 +824,7 @@
               "price_delta": 0
             },
             {
-              "label": "Strawberry",
-              "price_delta": 0
-            },
-            {
-              "label": "Matcha",
+              "label": "Berry",
               "price_delta": 0
             }
           ]

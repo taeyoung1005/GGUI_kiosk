@@ -24,29 +24,29 @@ export function buildPrompt({ step, profile, transcript, candidates }) {
   const t = profile.tokens;
   const copy = stepCopy(step, profile, candidates);
   const lines = [
-    "당신은 한국 디지털 취약층(주로 50세 이상)을 위한 음성 적응형 키오스크 UI를 만든다.",
-    `사용자 발화(STT): "${transcript ?? ""}"`,
-    `적응 강도 assist_level=${profile.assist_level} (effective=${profile.effective_level}), 나이대=${profile.age_group}.`,
+    "You build a voice-adaptive kiosk UI for people who struggle with kiosks (mainly seniors aged 50+). Write ALL UI text in ENGLISH.",
+    `User utterance (STT): "${transcript ?? ""}"`,
+    `Adaptation intensity assist_level=${profile.assist_level} (effective=${profile.effective_level}), age group=${profile.age_group}.`,
     "",
-    "【고정 구조 — 절대 바꾸지 말 것】",
+    "[FIXED STRUCTURE — never change]",
     step === "recommend"
-      ? `- 큰 메뉴 카드 ${t.card_count}장을 그리드로. 각 카드는 사진(placeholder 허용)+이름+가격+"이거 주문" 큰 버튼.`
+      ? `- ${t.card_count} large menu cards in a grid. Each card: photo (placeholder ok) + name + price + a large "Order this" button.`
       : step === "options"
-      ? "- 한 항목씩 큰 버튼으로 옵션(온도/사이즈)을 고르게. 이전으로 버튼 포함."
-      : "- 선택 요약 + ‘예/아니요’ 두 개의 큰 버튼만.",
-    "- 화면 상단에 제목/안내 문구. 군더더기 정보 금지.",
+      ? "- Choose options (temperature/size) one item at a time with large buttons. Include a Back button."
+      : "- Selection summary + only two large 'Yes/No' buttons.",
+    "- Title/guidance text at the top. No clutter.",
     "",
-    "【내용만 적응 — 강도 규율】",
-    `- 기본 글자 ${t.base_font_px}px, 제목 ${t.title_font_px}px 이상. 여백 넉넉히(padding≈${t.card_pad_px}px, gap≈${t.gap_px}px).`,
-    t.show_desc ? "- 짧은 설명 1줄 허용." : "- 설명은 빼고 이름·가격만(인지부하 최소).",
-    t.yesno_big ? "- 버튼은 화면 폭의 절반 이상으로 크게." : "- 버튼은 보통 크기로 단정하게.",
+    "[ADAPT CONTENT ONLY — intensity rules]",
+    `- Base font ${t.base_font_px}px, title ${t.title_font_px}px+. Generous spacing (padding≈${t.card_pad_px}px, gap≈${t.gap_px}px).`,
+    t.show_desc ? "- A one-line short description is allowed." : "- Drop descriptions; show name and price only (minimize cognitive load).",
+    t.yesno_big ? "- Buttons at least half the screen width." : "- Buttons normal size, tidy.",
     t.voice_guide
-      ? `- 음성안내 문구를 화면에 노출하고 voiceGuide prop 으로 전달: "${copy.voice}"`
-      : "- 음성안내는 약하게(필요 시만).",
-    "- 색 대비 높게, 터치 영역 크게, 한글로만.",
+      ? `- Show the voice guidance text on screen and pass it via the voiceGuide prop: "${copy.voice}"`
+      : "- Keep voice guidance minimal (only if needed).",
+    "- High color contrast, large touch targets, ENGLISH only.",
     "",
-    `제목: ${copy.title} / 안내: ${copy.subtitle}`,
-    "actionSpec 의 버튼 라벨/동작을 그대로 사용하고, 사용자가 한 번의 큰 터치로 다음 단계로 가게 하라.",
+    `Title: ${copy.title} / Guidance: ${copy.subtitle}`,
+    "Use the actionSpec button labels/actions as-is, and let the user advance to the next step with one big touch.",
   ];
   return lines.join("\n");
 }
@@ -112,15 +112,32 @@ export async function generateViaGgui(req, env) {
   try {
     await client.connect(transport);
 
-    // 1) handshake — intent + blueprintDraft(contract) + seedPrompt(prompt).
+    // 0) new session — 실서버는 chat당 sessionId 를 먼저 요구한다(ggui_new_session).
+    //    그 sessionId 를 handshake 에 전달해야 함(미전달 시 -32602 검증 거부 → LOCAL 폴백).
+    const sessionRes = await client.callTool({ name: "ggui_new_session", arguments: {} });
+    const sessionId = pickFromResult(sessionRes, ["sessionId", "session_id"]);
+    if (!sessionId) {
+      throw new Error("ggui_new_session: sessionId 없음 (응답: " + safe(sessionRes) + ")");
+    }
+
+    // GGUI 계약 불변식: actionSpec[*].nextStep 은 agentCapabilities.tools 에 선언된 것만 허용.
+    // 멀티턴은 module-d 가 /generate-ui 재호출로 처리하므로 GGUI 전송 시 nextStep 제거(검증 통과).
+    const gguiActionSpec = {};
+    for (const [k, v] of Object.entries(contract.actionSpec || {})) {
+      const { nextStep, ...rest } = v;
+      gguiActionSpec[k] = rest;
+    }
+
+    // 1) handshake — sessionId + intent + blueprintDraft(contract) + seedPrompt(prompt).
     const handshakeRes = await client.callTool({
       name: "ggui_handshake",
       arguments: {
+        sessionId,
         intent: contract.intent,
         blueprintDraft: {
-          contract: { propsSpec: contract.propsSpec, actionSpec: contract.actionSpec },
+          contract: { propsSpec: contract.propsSpec, actionSpec: gguiActionSpec },
           variance: { persona: `kiosk-50plus-L${profile.assist_level}`, seedPrompt: prompt },
-          ...(env.GGUI_MODEL ? { generator: gguiModelToGenerator(env.GGUI_MODEL) } : {}),
+          // generator 는 생략 → 서버 기본 생성기 사용. (provider:model 문자열은 등록된 generator id가 아님)
         },
       },
     });
@@ -129,27 +146,23 @@ export async function generateViaGgui(req, env) {
       throw new Error("ggui_handshake: handshakeId 없음 (응답: " + safe(handshakeRes) + ")");
     }
 
-    // 2) render — accept + props.
-    const renderRes = await client.callTool({
-      name: "ggui_render",
+    // 2) push — accept + props. (실서버 툴은 ggui_render 가 아니라 ggui_push)
+    const pushRes = await client.callTool({
+      name: "ggui_push",
       arguments: { handshakeId, decision: { kind: "accept" }, props },
     });
-    const renderId = pickFromResult(renderRes, ["renderId", "render_id"]);
-    const shortCode = pickFromResult(renderRes, ["shortCode", "short_code"]);
-    const resourceUri = pickFromResult(renderRes, ["resourceUri", "resource_uri"]);
+    // 실서버 출력: { stackItemId, url, ... } → embed_url = url, render_id = stackItemId
+    const url = pickFromResult(pushRes, ["url", "embedUrl", "embed_url"]);
+    const stackItemId = pickFromResult(pushRes, ["stackItemId", "stack_item_id", "renderId"]);
 
-    if (!shortCode && !resourceUri && !renderId) {
-      throw new Error("ggui_render: renderId/shortCode 없음 (응답: " + safe(renderRes) + ")");
+    if (!url && !stackItemId) {
+      throw new Error("ggui_push: url/stackItemId 없음 (응답: " + safe(pushRes) + ")");
     }
 
-    const embed_url = shortCode
-      ? `${gguiUrl}/r/${shortCode}`
-      : resourceUri
-      ? resourceUri
-      : `${gguiUrl}/r/${renderId}`;
+    const embed_url = url ? url : `${gguiUrl}/r/${stackItemId}`;
 
     return {
-      render_id: String(renderId ?? shortCode ?? `r-${Date.now()}`),
+      render_id: String(stackItemId ?? `r-${Date.now()}`),
       embed_url,
       contract: { actionSpec: contract.actionSpec, intent: contract.intent },
     };

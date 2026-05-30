@@ -12,7 +12,8 @@
 import { useEffect, useMemo, useState } from "react";
 import type { MenuItem } from "@contracts/types";
 import type { FlowState, Orchestrator } from "../flow/orchestrator";
-import { emojiFor, won } from "./emoji";
+import { USE_MOCK, menuAssetUrl } from "../api/client";
+import { artFor, emojiFor, won } from "./emoji";
 
 export interface AdaptiveKioskProps {
   flow: Orchestrator;
@@ -54,7 +55,7 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
   if (state.phase === "done" && state.order) {
     return (
       <div className="overlay">
-        <div className="done-check">✅</div>
+        <div className="done-check">Paid</div>
         <div className="big">Payment Complete!</div>
         <p className="hint">
           Order <b>{state.order.order_id}</b> · Total {won(state.order.total)}
@@ -69,7 +70,7 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
   if (state.phase === "error") {
     return (
       <div>
-        <div className="error-box">⚠️ {state.message}</div>
+        <div className="error-box">{state.message}</div>
         <button className="btn-primary" onClick={() => flow.reset(true)}>
           Back to Standard Screen
         </button>
@@ -96,7 +97,7 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
   // idle 등 — 안내만
   return (
     <div className="overlay">
-      <div className="big">🎤</div>
+      <div className="big">Ready for voice order</div>
       <p className="hint">{state.message}</p>
     </div>
   );
@@ -177,7 +178,12 @@ function RecommendStep({ flow, state }: { flow: Orchestrator; state: FlowState }
             className="big-card"
             onClick={() => flow.selectMenu(it)}
           >
-            <div className="emoji">{emojiFor(it)}</div>
+            <img
+              className="big-art"
+              src={USE_MOCK ? artFor(it) : menuAssetUrl(it.image_url)}
+              alt=""
+              aria-hidden="true"
+            />
             <div className="b-name">{it.name}</div>
             <div className="b-price">{won(it.price)}</div>
           </button>

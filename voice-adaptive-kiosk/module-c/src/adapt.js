@@ -1,6 +1,6 @@
 // src/adapt.js
 //
-// 적응 규율(canonical) — assist_level(0~3) + age_group(50+/under50) → UI 강도.
+// 적응 규율(canonical) — assist_level(0~3) + age_group(영어 decade 버킷) → UI 강도.
 // "구조 고정(큰 카드 2~3장 + 예/아니요 + 큰 글씨), 내용만 적응"이라는 SPEC §4 규칙을
 // 한 곳에 둔다. GGUI 경로는 이 규율을 prompt 로, LOCAL 경로는 이 규율을 디자인 토큰으로 쓴다.
 //
@@ -69,20 +69,23 @@ export function normalizeAssistLevel(level) {
   return Math.max(0, Math.min(3, Math.round(n)));
 }
 
+/** 시니어 버킷(50대 이상) — 보조로 적응 강도를 한 단계 올린다. */
+const SENIOR_GROUPS = new Set(["fifties", "sixties", "seventies_plus"]);
+
 /**
  * 적응 프로파일 계산.
- * age_group 이 "50+" 면 보조 강도를 한 단계만 부드럽게 올린다(보조 신호).
+ * 시니어 버킷이면 보조 강도를 한 단계만 부드럽게 올린다(보조 신호).
  */
 export function resolveProfile({ assist_level, age_group }) {
   const lvl = normalizeAssistLevel(assist_level);
-  // 나이 보조 가중: 50+ 이고 아직 최대치가 아니면 effective 를 +1 (단, 토큰만, 원래 level 은 유지)
+  // 나이 보조 가중: 시니어이고 아직 최대치가 아니면 effective 를 +1 (토큰만, 원래 level 유지)
   let effective = lvl;
-  if (age_group === "50+" && effective < 3) effective += 1;
+  if (SENIOR_GROUPS.has(age_group) && effective < 3) effective += 1;
   const tokens = ASSIST_TOKENS[effective] ?? ASSIST_TOKENS[0];
   return {
     assist_level: lvl,
     effective_level: effective,
-    age_group: age_group === "50+" ? "50+" : "under50",
+    age_group: age_group ?? "unknown",
     tokens,
   };
 }
@@ -116,30 +119,30 @@ export function pickCandidates(menu_context, transcript, count) {
   return ordered.slice(0, count);
 }
 
-/** 단계(step) 별 한국어 안내 문구(노인친화 톤). */
+/** Per-step copy (English, senior-friendly tone). */
 export function stepCopy(step, profile, candidates) {
   const big = profile.effective_level >= 2;
   switch (step) {
     case "options":
       return {
-        title: big ? "어떻게 드릴까요?" : "옵션을 선택해 주세요",
-        subtitle: "원하시는 것을 큰 버튼으로 골라 주세요.",
+        title: big ? "How would you like it?" : "Choose your options",
+        subtitle: "Pick what you'd like with the large buttons.",
         voice:
-          "원하시는 옵션을 골라 주세요. 따뜻한 것과 차가운 것 중에서 선택하실 수 있어요.",
+          "Please choose your options. You can pick hot or iced.",
       };
     case "confirm":
       return {
-        title: big ? "이대로 주문할까요?" : "주문을 확인해 주세요",
-        subtitle: "맞으면 ‘예’, 다시 고르려면 ‘아니요’를 눌러 주세요.",
-        voice: "이대로 주문하시겠어요? 맞으면 예, 다시 고르려면 아니요를 눌러 주세요.",
+        title: big ? "Order this?" : "Please confirm your order",
+        subtitle: "Tap 'Yes' if it's correct, or 'No' to choose again.",
+        voice: "Would you like to order this? Tap Yes if it's correct, or No to choose again.",
       };
     case "recommend":
     default: {
-      const first = candidates?.[0]?.name ?? "추천 메뉴";
+      const first = candidates?.[0]?.name ?? "our menu";
       return {
-        title: big ? "이거 어떠세요?" : "이런 메뉴는 어떠세요?",
-        subtitle: "마음에 드는 것을 큰 카드로 골라 주세요.",
-        voice: `${first} 같은 메뉴를 추천드려요. 마음에 드시는 것을 골라 주세요.`,
+        title: big ? "How about this?" : "How about one of these?",
+        subtitle: "Pick the one you like with the large cards.",
+        voice: `We recommend something like ${first}. Please pick the one you like.`,
       };
     }
   }

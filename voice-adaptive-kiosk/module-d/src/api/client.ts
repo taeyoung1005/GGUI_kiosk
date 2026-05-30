@@ -221,6 +221,13 @@ export const apiConfig = {
   GGUI_URL,
 };
 
+export function menuAssetUrl(imageUrl: string): string {
+  if (!imageUrl) return "";
+  if (/^https?:\/\//i.test(imageUrl)) return imageUrl;
+  const path = imageUrl.startsWith("/") ? imageUrl : `/${imageUrl}`;
+  return `${MENU_URL}${path}`;
+}
+
 function norm(s: string): string {
   return String(s || "").toLowerCase().replace(/\s+/g, "");
 }
