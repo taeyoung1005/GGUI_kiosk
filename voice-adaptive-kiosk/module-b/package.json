@@ -1,0 +1,19 @@
+{
+  "name": "voice-adaptive-kiosk-module-b",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Module B — 메뉴/주문 백엔드 (Express, ESM). OBA Weekend-thon 음성 적응형 키오스크.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "dependencies": {
+    "cors": "^2.8.5",
+    "express": "^4.19.2"
+  }
+}

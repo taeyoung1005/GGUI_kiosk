@@ -1,0 +1,19 @@
+{
+  "name": "voice-adaptive-kiosk-module-c",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Module C — GGUI 적응 UI 생성 서비스 (음성 적응형 키오스크). GGUI(OpenAI BYOK) 경로 + 키 없이 도는 LOCAL_FALLBACK 경로.",
+  "type": "module",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "dependencies": {
+    "express": "^4.19.2",
+    "@modelcontextprotocol/sdk": "^1.12.0"
+  }
+}

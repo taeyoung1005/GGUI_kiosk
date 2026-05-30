@@ -1,0 +1,16 @@
+# Module D — 웹 프론트
+node_modules/
+dist/
+build/
+.vite/
+.cache/
+*.tsbuildinfo
+
+# 환경
+.env
+.env.*
+!.env.example
+
+# OS / 에디터
+.DS_Store
+*.swp

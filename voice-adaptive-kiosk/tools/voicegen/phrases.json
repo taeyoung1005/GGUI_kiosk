@@ -1,0 +1,47 @@
+{
+  "_comment": "테스트/데모용 영어 주문 발화 세트. persona = 어떤 사용자처럼 들리게 할지(voices.json 매핑). text의 '...'와 'uh/um/er'는 머뭇거림(행동신호 assist_level)을 유도.",
+  "phrases": [
+    {
+      "id": "elder_latte_hesitant",
+      "persona": "elder",
+      "text": "Uh... um... can I get... a latte?",
+      "intent": "latte order (ambiguous, hesitant)",
+      "expect": { "age_group": "50+", "assist_level": "2~3", "note": "slow + fillers + pauses -> high-assist screen" }
+    },
+    {
+      "id": "elder_latte_plain",
+      "persona": "elder",
+      "text": "Can I get a latte, please?",
+      "intent": "latte order (plain)",
+      "expect": { "age_group": "50+", "assist_level": "1~2" }
+    },
+    {
+      "id": "elder_ambiguous",
+      "persona": "elder",
+      "text": "Um... I'd like something cold... anything is fine.",
+      "intent": "ambiguous order -> recommendation cards",
+      "expect": { "age_group": "50+", "assist_level": "3", "note": "generate 2~3 recommendation cards" }
+    },
+    {
+      "id": "youth_ice_americano_fast",
+      "persona": "youth",
+      "text": "One iced americano, please.",
+      "intent": "clear, fast order",
+      "expect": { "age_group": "under50", "assist_level": "0", "note": "compact / fast-checkout screen (contrast)" }
+    },
+    {
+      "id": "youth_vanilla_latte",
+      "persona": "youth",
+      "text": "A hot vanilla latte, please.",
+      "intent": "order with options",
+      "expect": { "age_group": "under50", "assist_level": "0~1" }
+    },
+    {
+      "id": "elder_recovery",
+      "persona": "elder",
+      "text": "No... not that one... a different one.",
+      "intent": "recovery / re-utterance scenario",
+      "expect": { "assist_level": "2~3", "note": "graceful regeneration demo" }
+    }
+  ]
+}

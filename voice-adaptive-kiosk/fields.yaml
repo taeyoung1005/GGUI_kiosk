@@ -1,0 +1,94 @@
+# 각 item을 심층 조사할 때 채울 필드 정의
+# detail_level: brief -> moderate -> detailed (deep 단계에서 깊이 기준)
+
+categories:
+  - name: 기본 정보
+    fields:
+      - name: official_name
+        description: 정식 명칭 / 모델 ID / 프로젝트명
+        detail_level: brief
+      - name: provider
+        description: 제공처(기업·연구소·오픈소스 조직)
+        detail_level: brief
+      - name: access_method
+        description: 접근 방법 — API / MCP / HuggingFace / npm / 로컬 바이너리 / 데이터셋 다운로드
+        detail_level: moderate
+      - name: repo_or_endpoint
+        description: 공식 레포 URL · MCP 엔드포인트 · API base URL (검증된 실제 주소)
+        detail_level: detailed
+
+  - name: 라이선스 (NC vs 상업 분기)
+    fields:
+      - name: original_license
+        description: 원본 가중치/코드 라이선스 (예: Apache 2.0, CC-BY-NC-SA, EXAONE 1.2-NC)
+        detail_level: moderate
+      - name: commercial_path
+        description: 상업 사용 가능 경로 (예: EXAONE→FriendliAI API). 없으면 "없음"
+        detail_level: moderate
+      - name: hackathon_usable
+        description: 해커톤(비상업 데모)에서 즉시 사용 가능 여부 + 사업화 전환 시 제약
+        detail_level: moderate
+
+  - name: 기술 사양
+    fields:
+      - name: io_format
+        description: 입력/출력 형식 (오디오 16kHz / 텍스트 / blueprint UI / 확률 등)
+        detail_level: moderate
+      - name: model_size_gpu
+        description: 모델 크기 · GPU/메모리 요구 · 로컬 구동 가능 여부
+        detail_level: moderate
+      - name: language_support
+        description: 지원 언어 (특히 한국어 + 외국어 분기 대상 언어)
+        detail_level: moderate
+
+  - name: 핵심 역할 & 통합
+    fields:
+      - name: project_role
+        description: 본 파이프라인에서 담당하는 모듈/단계
+        detail_level: brief
+      - name: integration_method
+        description: 어떻게 연결하는가 — SDK/엔드포인트/MCP 핸드셰이크/설정 스니펫
+        detail_level: detailed
+      - name: track_requirement_mapping
+        description: GGUI 트랙 또는 LG U+ 트랙(Voice AI+EXAONE) 필수 요건을 어떻게 충족하는지
+        detail_level: moderate
+
+  - name: 실시간성 & 정확도
+    fields:
+      - name: latency_budget
+        description: 단계별 지연(ms) 추정 — VAD→STT→연령추정→EXAONE→GGUI 렌더 합산, 목표 <3초 대비
+        detail_level: detailed
+      - name: target_accuracy
+        description: 타깃 인구별(어르신/아이/외국인/청년) 정확도와 성능 비대칭(영어편향·아동저성능 등)
+        detail_level: detailed
+
+  - name: 제약 & 실전 대비
+    fields:
+      - name: constraints_risks
+        description: rate limit · 정확도 한계 · 데이터 필요 · 실시간성 등 리스크
+        detail_level: moderate
+      - name: data_access_barrier
+        description: 인증·승인·국적 제한 등 즉시 사용 장벽 (특히 AIHub)
+        detail_level: moderate
+      - name: fallback_degradation
+        description: 실패/네트워크 끊김 시 graceful degradation 설계 (기본 UI 폴백·수동선택·룰보정)
+        detail_level: moderate
+      - name: privacy_ondevice
+        description: 음성→연령/성별 민감정보의 온디바이스 처리/즉시 폐기 여부 (심사·시연 설득력)
+        detail_level: moderate
+
+  - name: 해커톤 적합성 & 대안
+    fields:
+      - name: hackathon_fit
+        description: 1박2일(24h) 내 MVP 구현 난이도 + 사전 세팅 필요 시간/항목
+        detail_level: detailed
+      - name: alternatives
+        description: 대체 가능한 도구/모델과 트레이드오프
+        detail_level: moderate
+
+# deep 단계에서 자동 채워질 불확실 필드 (예약)
+uncertain:
+  - lg_uplus_provided_voice_api   # LG U+가 행사에서 별도 STT/TTS API/SDK를 제공하는지 (주최 공지 의존)
+  - oba_track_exact_rules          # GGUI/LG U+ 트랙 상금·필수조건 정확한 원문 (oba.run 미게시)
+  - exaone_korean_ui_prompt_quality # EXAONE의 한국어 UI 생성 프롬프트 품질 실측치
+  - audeering_korean_child_accuracy # audeering 모델의 한국어/아동 실제 정확도 (공식 수치 없음)

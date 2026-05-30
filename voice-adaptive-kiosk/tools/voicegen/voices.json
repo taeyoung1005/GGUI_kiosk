@@ -1,0 +1,19 @@
+{
+  "_comment": [
+    "persona → ElevenLabs voice_id + 설정 매핑. 데모는 영어 → 영어 보이스 사용(영어 elderly 보이스는 라이브러리에 풍부).",
+    "ElevenLabs 대시보드 > Voices > 각 보이스의 'ID' 복사. 영어는 eleven_multilingual_v2 또는 eleven_turbo_v2_5 모두 가능.",
+    "elder = 나이 든 톤 + 느리게(speed↓), youth = 보통/빠르게. 라이브러리에 마땅한 노인 보이스가 없으면 대시보드 Voice Design으로 'elderly, slightly shaky' 생성.",
+    "⚠️ 특정 실존 인물 목소리 복제는 동의·ToS 이슈 → 라이브러리/디자인 보이스 권장."
+  ],
+  "model_id": "eleven_multilingual_v2",
+  "personas": {
+    "elder": {
+      "voice_id": "REPLACE_WITH_ELDER_KO_VOICE_ID",
+      "voice_settings": { "stability": 0.6, "similarity_boost": 0.7, "style": 0.2, "speed": 0.8 }
+    },
+    "youth": {
+      "voice_id": "REPLACE_WITH_YOUTH_KO_VOICE_ID",
+      "voice_settings": { "stability": 0.4, "similarity_boost": 0.7, "style": 0.3, "speed": 1.05 }
+    }
+  }
+}

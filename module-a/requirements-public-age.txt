@@ -1,0 +1,8 @@
+-r requirements.txt
+loralib>=0.1.2
+speechbrain>=1.0.3
+
+# Clone the Vox-Profile source separately because its package metadata does not
+# expose the `src.model...` import path used by the official example.
+# Command:
+#   git clone https://github.com/tiantiaf0627/vox-profile-release.git vendor/vox-profile-release

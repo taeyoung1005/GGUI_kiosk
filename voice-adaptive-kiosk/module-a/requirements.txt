@@ -1,0 +1,41 @@
+# Module A — AI 추론 서비스 의존성
+# MOCK_MODE=1 (기본)에서는 아래 [core]만 있으면 uvicorn 기동 + /analyze 동작.
+# 실모델(STT/나이/VAD)을 쓰려면 [inference]·[training] 섹션을 함께 설치한다.
+
+# ── [core] FastAPI 서버 (mock 모드 최소 의존성) ───────────────
+fastapi>=0.110,<1.0
+uvicorn[standard]>=0.27,<1.0
+pydantic>=2.5,<3.0
+python-multipart>=0.0.9        # multipart 파일 업로드 파싱
+numpy>=1.24,<2.1               # 신호 계산 / 폴백 VAD
+
+# ── [inference] 실모델 추론 (MOCK_MODE=0) ─────────────────────
+# STT
+faster-whisper>=1.0.0
+# (Apple Silicon 가속 대안) mlx-whisper>=0.3.0
+#
+# 나이·성별 분류 — vox-profile WavLMWrapper (tiantiaf/wavlm-large-age-sex)
+#   inference/vox_profile/ 에 모델 코드 vendoring. 아래 의존성 필요.
+torch>=2.1.0
+transformers>=4.40.0
+speechbrain>=1.0.0             # make_padding_masks (모델 forward 의존)
+loralib>=0.1.2                # WavLM LoRA 어댑터
+huggingface_hub>=0.23.0       # PyTorchModelHubMixin.from_pretrained
+#
+# 오디오 IO / 리샘플
+soundfile>=0.12.1
+librosa>=0.10.1
+#
+# VAD
+silero-vad>=5.1               # (대안) torch.hub snakers4/silero-vad
+
+# ── [dev] 테스트 ──────────────────────────────────────────────
+pytest>=8.0
+
+# ── [training] 원격 GPU 전용 (학습 파이프라인) ────────────────
+# 로컬 추론에는 불필요. 원격 서버에서만 설치 권장.
+# datasets>=2.18.0
+# accelerate>=0.29.0
+# scikit-learn>=1.4.0
+# tqdm>=4.66.0
+# pandas>=2.2.0

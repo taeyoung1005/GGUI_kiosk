@@ -1,0 +1,33 @@
+{
+  "name": "voice-adaptive-kiosk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OBA Weekend-thon · 음성 적응형 키오스크 (GGUI 트랙). 루트 통합 — B/C/D 동시 기동 + 전 모듈 지도.",
+  "scripts": {
+    "_comment": "─── 통합 기동 ───────────────────────────────────────────────",
+    "dev:all": "concurrently -n B,C,D -c green,yellow,cyan \"npm:dev:b\" \"npm:dev:c\" \"npm:dev:d\"",
+    "dev:b": "node module-b/server.js",
+    "dev:c": "node module-c/server.js",
+    "dev:d": "npm --prefix module-d run dev",
+    "_comment_a": "─── Module A (Python) 는 node 가 아니라 uvicorn 으로 띄운다 → run.sh 또는 dev:a 사용 ─",
+    "dev:a": "cd module-a && uvicorn app:app --port 8000",
+    "_comment_install": "─── 의존성 설치 (각 노드 모듈 + 루트 concurrently) ───────────",
+    "install:all": "npm install && npm --prefix module-b install && npm --prefix module-c install && npm --prefix module-d install",
+    "_comment_health": "─── 헬스체크 (전 모듈 기동 후) ───────────────────────────────",
+    "health": "node scripts/health.mjs",
+    "_comment_run": "─── A 포함 전체 (백그라운드 + 헬스체크) ─────────────────────",
+    "run:all": "bash run.sh"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1"
+  },
+  "workspaces": [
+    "module-b",
+    "module-c",
+    "module-d"
+  ],
+  "engines": {
+    "node": ">=20"
+  }
+}

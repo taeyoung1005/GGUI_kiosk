@@ -1,0 +1,506 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Voice Age Lab</title>
+    <style>
+      :root {
+        --ink: #151515;
+        --muted: #73716b;
+        --line: #dedbd2;
+        --paper: #f7f2e8;
+        --surface: #fffaf0;
+        --green: #0f7a52;
+        --blue: #2446c7;
+        --red: #b83b2f;
+        --amber: #d9822b;
+      }
+
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        color: var(--ink);
+        background:
+          linear-gradient(90deg, rgba(21,21,21,0.04) 1px, transparent 1px),
+          linear-gradient(rgba(21,21,21,0.04) 1px, transparent 1px),
+          var(--paper);
+        background-size: 28px 28px;
+        font-family: ui-serif, Georgia, "Times New Roman", serif;
+      }
+
+      button, input, select, textarea {
+        font: inherit;
+      }
+
+      .shell {
+        min-height: 100vh;
+        display: grid;
+        grid-template-columns: minmax(360px, 460px) 1fr;
+      }
+
+      aside {
+        border-right: 1px solid var(--line);
+        background: rgba(255,250,240,0.92);
+        padding: 28px;
+        position: sticky;
+        top: 0;
+        height: 100vh;
+        overflow: auto;
+      }
+
+      main {
+        padding: 28px;
+        display: grid;
+        gap: 22px;
+      }
+
+      .brand {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 16px;
+        margin-bottom: 28px;
+      }
+
+      h1 {
+        font-size: 44px;
+        line-height: 0.95;
+        margin: 0;
+        letter-spacing: 0;
+      }
+
+      .stamp {
+        border: 1px solid var(--ink);
+        padding: 7px 10px;
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+        transform: rotate(3deg);
+        background: #fff;
+      }
+
+      label {
+        display: block;
+        color: var(--muted);
+        font-size: 13px;
+        margin: 0 0 7px;
+      }
+
+      .field { margin-bottom: 16px; }
+      select, textarea, input {
+        width: 100%;
+        border: 1px solid var(--line);
+        background: #fffdf7;
+        color: var(--ink);
+        padding: 12px 13px;
+        border-radius: 0;
+        outline: none;
+      }
+
+      textarea {
+        min-height: 116px;
+        resize: vertical;
+      }
+
+      .grid-2 {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+      }
+
+      .actions {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 10px;
+        margin-top: 18px;
+      }
+
+      button {
+        border: 1px solid var(--ink);
+        background: var(--ink);
+        color: #fff;
+        padding: 13px 14px;
+        cursor: pointer;
+        min-height: 48px;
+      }
+
+      button.secondary {
+        background: transparent;
+        color: var(--ink);
+      }
+
+      button:disabled {
+        cursor: wait;
+        opacity: 0.62;
+      }
+
+      .status {
+        margin-top: 18px;
+        padding: 12px;
+        border-left: 4px solid var(--blue);
+        background: rgba(36,70,199,0.08);
+        color: #2b334f;
+        min-height: 48px;
+      }
+
+      .hero-result {
+        display: grid;
+        grid-template-columns: minmax(260px, 380px) 1fr;
+        border: 1px solid var(--ink);
+        background: var(--surface);
+        min-height: 340px;
+      }
+
+      .meter {
+        padding: 26px;
+        border-right: 1px solid var(--ink);
+        display: flex;
+        flex-direction: column;
+        justify-content: space-between;
+      }
+
+      .age-number {
+        font-size: clamp(76px, 10vw, 148px);
+        line-height: 0.82;
+        font-weight: 800;
+        font-family: ui-sans-serif, "Avenir Next", Helvetica, sans-serif;
+      }
+
+      .age-label {
+        font-size: 24px;
+        margin-top: 12px;
+      }
+
+      .detail {
+        padding: 26px;
+        display: grid;
+        align-content: space-between;
+        gap: 18px;
+      }
+
+      .facts {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(120px, 1fr));
+        gap: 10px;
+      }
+
+      .fact {
+        border-top: 1px solid var(--line);
+        padding-top: 10px;
+      }
+
+      .fact strong {
+        display: block;
+        font-size: 24px;
+      }
+
+      audio {
+        width: 100%;
+      }
+
+      .quote {
+        font-size: 26px;
+        line-height: 1.25;
+      }
+
+      .history-head {
+        display: flex;
+        align-items: flex-end;
+        justify-content: space-between;
+        gap: 12px;
+      }
+
+      h2 {
+        font-size: 30px;
+        margin: 0;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        background: rgba(255,250,240,0.9);
+        border: 1px solid var(--line);
+      }
+
+      th, td {
+        text-align: left;
+        border-bottom: 1px solid var(--line);
+        padding: 10px 9px;
+        font-size: 14px;
+        vertical-align: top;
+      }
+
+      th {
+        color: var(--muted);
+        font-size: 12px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .pill {
+        display: inline-block;
+        border: 1px solid currentColor;
+        padding: 3px 7px;
+        font-family: ui-sans-serif, "Avenir Next", Helvetica, sans-serif;
+        font-size: 12px;
+      }
+
+      .ok { color: var(--green); }
+      .warn { color: var(--amber); }
+      .bad { color: var(--red); }
+
+      @media (max-width: 920px) {
+        .shell, .hero-result {
+          grid-template-columns: 1fr;
+        }
+        aside {
+          position: static;
+          height: auto;
+          border-right: 0;
+          border-bottom: 1px solid var(--line);
+        }
+        .meter {
+          border-right: 0;
+          border-bottom: 1px solid var(--ink);
+        }
+        .facts {
+          grid-template-columns: 1fr 1fr;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="shell">
+      <aside>
+        <div class="brand">
+          <h1>Voice<br />Age Lab</h1>
+          <div class="stamp">Live<br />Demo</div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="targetDecade">테스트 연령대</label>
+            <select id="targetDecade">
+              <option>0대</option>
+              <option>10대</option>
+              <option>20대</option>
+              <option>30대</option>
+              <option>40대</option>
+              <option selected>50대</option>
+              <option>60대</option>
+              <option>70대</option>
+              <option>80대</option>
+              <option>90대</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="gender">성별 프롬프트</label>
+            <select id="gender">
+              <option value="female">female</option>
+              <option value="male">male</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="grid-2">
+          <div class="field">
+            <label for="language">언어</label>
+            <select id="language">
+              <option value="en" selected>English</option>
+              <option value="ko">한국어</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="seed">Seed</label>
+            <input id="seed" type="number" value="1" />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="text">즉석 생성 문장</label>
+          <textarea id="text"></textarea>
+        </div>
+
+        <div class="actions">
+          <button id="randomize" class="secondary">랜덤 문장</button>
+          <button id="generate">생성 + 분석</button>
+        </div>
+
+        <div id="status" class="status">준비됨. Text to Speech API key가 서버 환경변수에 있어야 합니다.</div>
+      </aside>
+
+      <main>
+        <section class="hero-result">
+          <div class="meter">
+            <div>
+              <div class="age-number" id="years">--</div>
+              <div class="age-label" id="group">아직 분석 없음</div>
+            </div>
+            <div>
+              <span class="pill" id="targetPill">target: --</span>
+              <span class="pill" id="voicePill">voice: --</span>
+            </div>
+          </div>
+          <div class="detail">
+            <div class="quote" id="quote">왼쪽에서 문장을 만들고 바로 음성 합성 및 나이 추정을 실행합니다.</div>
+            <audio id="player" controls></audio>
+            <div class="facts">
+              <div class="fact"><label>confidence</label><strong id="confidence">--</strong></div>
+              <div class="fact"><label>assist level</label><strong id="assist">--</strong></div>
+              <div class="fact"><label>latency</label><strong id="latency">--</strong></div>
+              <div class="fact"><label>language</label><strong id="langFact">--</strong></div>
+            </div>
+          </div>
+        </section>
+
+        <section>
+          <div class="history-head">
+            <h2>실험 기록</h2>
+            <button id="clear" class="secondary" style="width: 132px">기록 삭제</button>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>time</th>
+                <th>target</th>
+                <th>gender</th>
+                <th>lang</th>
+                <th>predicted</th>
+                <th>years</th>
+                <th>match</th>
+                <th>text</th>
+              </tr>
+            </thead>
+            <tbody id="history"></tbody>
+          </table>
+        </section>
+      </main>
+    </div>
+
+    <script>
+      const prompts = {
+        en: [
+          "I would like a latte, please.",
+          "Can you help me choose a drink?",
+          "One hot coffee, please.",
+          "Please show me the menu slowly.",
+          "I want something not too sweet.",
+          "Latte, please."
+        ],
+        ko: [
+          "라떼 하나 주세요.",
+          "음료 추천해 주세요.",
+          "따뜻한 커피 한 잔 주세요.",
+          "메뉴를 천천히 보여 주세요.",
+          "너무 달지 않은 걸로 주세요.",
+          "다시 한 번 말해 주세요."
+        ]
+      };
+
+      const el = (id) => document.getElementById(id);
+      const historyKey = "voice-age-lab-history-v1";
+
+      function defaultText() {
+        const lang = el("language").value;
+        const decade = el("targetDecade").value;
+        const gender = el("gender").value;
+        const base = prompts[lang][Number(el("seed").value || 0) % prompts[lang].length];
+        if (lang === "ko") return `${decade} ${gender} 테스트 음성입니다. ${base}`;
+        return `This is a ${gender} speaker in their ${decade.replace("대", "s")}. ${base}`;
+      }
+
+      function decadeFromYears(years) {
+        if (years === null || years === undefined) return "unknown";
+        const value = Math.max(0, Math.min(99, Math.floor(Number(years))));
+        return `${Math.floor(value / 10) * 10}대`;
+      }
+
+      function renderHistory() {
+        const rows = JSON.parse(localStorage.getItem(historyKey) || "[]");
+        el("history").innerHTML = rows.map((row) => {
+          const cls = row.match ? "ok" : "warn";
+          return `<tr>
+            <td>${row.time}</td>
+            <td>${row.target}</td>
+            <td>${row.gender}</td>
+            <td>${row.language}</td>
+            <td>${row.predicted}</td>
+            <td>${row.years}</td>
+            <td><span class="pill ${cls}">${row.match ? "match" : "drift"}</span></td>
+            <td>${row.text}</td>
+          </tr>`;
+        }).join("");
+      }
+
+      function pushHistory(row) {
+        const rows = JSON.parse(localStorage.getItem(historyKey) || "[]");
+        rows.unshift(row);
+        localStorage.setItem(historyKey, JSON.stringify(rows.slice(0, 80)));
+        renderHistory();
+      }
+
+      async function generate() {
+        const target = el("targetDecade").value;
+        const language = el("language").value;
+        const gender = el("gender").value;
+        const text = el("text").value.trim() || defaultText();
+        const seed = Number(el("seed").value || Date.now());
+        el("status").textContent = "ElevenLabs 음성 생성 및 나이 추정 중...";
+        el("generate").disabled = true;
+
+        try {
+          const response = await fetch("/demo/generate-and-analyze", {
+            method: "POST",
+            headers: { "content-type": "application/json" },
+            body: JSON.stringify({ target_decade: target, age_group: target, language, text, seed })
+          });
+          const data = await response.json();
+          if (!response.ok) throw new Error(data.detail || "request failed");
+          const audioUrl = `data:audio/mpeg;base64,${data.audio_base64}`;
+          el("player").src = audioUrl;
+          el("quote").textContent = data.text;
+          el("years").textContent = data.age.years_est?.toFixed ? data.age.years_est.toFixed(1) : data.age.years_est;
+          el("group").textContent = data.age.group;
+          el("targetPill").textContent = `target: ${target}`;
+          el("voicePill").textContent = `voice bucket: ${data.voice_bucket}`;
+          el("confidence").textContent = Number(data.age.confidence).toFixed(2);
+          el("assist").textContent = data.behavioral.assist_level;
+          el("latency").textContent = `${data.duration_ms}ms`;
+          el("langFact").textContent = data.language;
+          const predictedDecade = decadeFromYears(data.age.years_est);
+          pushHistory({
+            time: new Date().toLocaleTimeString(),
+            target,
+            gender,
+            language,
+            predicted: predictedDecade,
+            years: Number(data.age.years_est).toFixed(1),
+            match: predictedDecade === target,
+            text: data.text
+          });
+          el("status").textContent = "완료. 오디오를 재생하고 결과를 확인하세요.";
+        } catch (error) {
+          el("status").textContent = `실패: ${error.message}`;
+        } finally {
+          el("generate").disabled = false;
+        }
+      }
+
+      el("randomize").addEventListener("click", () => {
+        el("seed").value = Math.floor(Math.random() * 100000);
+        el("text").value = defaultText();
+      });
+      el("generate").addEventListener("click", generate);
+      el("clear").addEventListener("click", () => {
+        localStorage.removeItem(historyKey);
+        renderHistory();
+      });
+      ["targetDecade", "gender", "language", "seed"].forEach((id) => {
+        el(id).addEventListener("change", () => { el("text").value = defaultText(); });
+      });
+      el("text").value = defaultText();
+      renderHistory();
+    </script>
+  </body>
+</html>

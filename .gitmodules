@@ -1,0 +1,3 @@
+[submodule "ggui"]
+	path = ggui
+	url = https://github.com/ggui-ai/ggui.git

@@ -1,0 +1,12 @@
+__pycache__/
+*.py[cod]
+.DS_Store
+
+module-a/.env
+module-a/.venv/
+module-a/bin/
+module-a/data/
+module-a/runs/
+module-a/models/age_model/
+module-a/vendor/
+module-a/artifacts/
