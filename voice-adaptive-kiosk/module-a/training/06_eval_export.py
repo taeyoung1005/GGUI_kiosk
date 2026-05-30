@@ -1,109 +1,71 @@
-"""06_eval_export.py — 평가 + save_pretrained(models/age_model).
-
-test.jsonl 로 최종 모델을 평가하고, audeering zero-shot 과 비교한 뒤
-더 나은(또는 학습된) 모델을 models/age_model/ 로 export.
-이 폴더(config + safetensors + feature_extractor)를 scp 로 로컬 Module A 에 이식한다.
-
-실행:
-    python training/06_eval_export.py
-
-이식(로컬로):
-    scp -r oba-4060ti:~/module-a/models/age_model ./module-a/models/age_model
-    # 로컬: AGE_MODEL_PATH=./models/age_model 로 동일 코드 추론
-
-코드 식별자는 영어, 주석은 한국어.
-"""
-
 from __future__ import annotations
 
+import argparse
 import json
-import os
+import shutil
 from pathlib import Path
 
-DATA_ROOT = Path(os.getenv("DATA_ROOT", "./training/data"))
-OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "./models/age_model"))
-CKPT_DIR = OUTPUT_DIR / "checkpoints" / "last"
-SAMPLE_RATE = 16000
-MAX_SECONDS = 8.0
+import numpy as np
+import torch
+from sklearn.metrics import classification_report, confusion_matrix
+from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
+
+from common import iter_jsonl
 
 
-def load_split(name: str):
-    path = DATA_ROOT / f"{name}.jsonl"
-    if not path.exists():
-        return []
-    return [json.loads(l) for l in path.open(encoding="utf-8")]
+@torch.inference_mode()
+def predict(model, extractor, audio_path: str, device: str) -> tuple[int, float]:
+    import librosa
+
+    audio, _ = librosa.load(audio_path, sr=16000, mono=True)
+    inputs = extractor(audio, sampling_rate=16000, return_tensors="pt", max_length=16000 * 12, truncation=True)
+    inputs = {key: value.to(device) for key, value in inputs.items()}
+    probs = torch.softmax(model(**inputs).logits[0], dim=-1).detach().cpu().numpy()
+    idx = int(probs.argmax())
+    return idx, float(probs[idx])
 
 
 def main() -> None:
-    test_rows = load_split("test")
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--test", default="./data/manifests/test.jsonl")
+    parser.add_argument("--checkpoint", default="./runs/age-wav2vec2")
+    parser.add_argument("--export-dir", default="./models/age_model")
+    args = parser.parse_args()
 
-    try:
-        import numpy as np
-        import torch
-        from transformers import (
-            AutoFeatureExtractor,
-            AutoModelForAudioClassification,
-        )
-    except Exception as e:
-        print(f"[06_eval_export] 의존성 미설치: {e}")
-        return
-
-    if not CKPT_DIR.exists():
-        print(f"[06_eval_export] 체크포인트 없음: {CKPT_DIR} — 05_train.py 먼저 실행.")
-        return
-
-    feature_extractor = AutoFeatureExtractor.from_pretrained(str(CKPT_DIR))
-    model = AutoModelForAudioClassification.from_pretrained(str(CKPT_DIR))
-    model.eval()
     device = "cuda" if torch.cuda.is_available() else "cpu"
-    model.to(device)
+    extractor = AutoFeatureExtractor.from_pretrained(args.checkpoint)
+    model = AutoModelForAudioClassification.from_pretrained(args.checkpoint).to(device)
+    model.eval()
+    id2label = {int(k): v for k, v in model.config.id2label.items()}
+    label2id = {v: k for k, v in id2label.items()}
 
-    # ── 평가 ──────────────────────────────────────────────────
-    correct = total = 0
-    tp = fp = fn = 0  # 50+(=1) 기준
-    if test_rows:
-        import librosa
+    y_true = []
+    y_pred = []
+    rows = []
+    for row in iter_jsonl(Path(args.test)):
+        if row["age_group"] not in label2id:
+            continue
+        pred, conf = predict(model, extractor, row["clip_path"], device)
+        y_true.append(label2id[row["age_group"]])
+        y_pred.append(pred)
+        rows.append({**row, "predicted": id2label[pred], "confidence": conf})
 
-        for r in test_rows:
-            y, _ = librosa.load(
-                r["clip_path"], sr=SAMPLE_RATE, mono=True, duration=MAX_SECONDS
-            )
-            feats = feature_extractor(y, sampling_rate=SAMPLE_RATE, return_tensors="pt")
-            with torch.no_grad():
-                logits = model(feats["input_values"].to(device)).logits
-            pred = int(logits.argmax(-1).item())
-            label = int(r["label"])
-            total += 1
-            correct += int(pred == label)
-            if pred == 1 and label == 1:
-                tp += 1
-            elif pred == 1 and label == 0:
-                fp += 1
-            elif pred == 0 and label == 1:
-                fn += 1
+    labels = [id2label[idx] for idx in sorted(id2label)]
+    report = classification_report(y_true, y_pred, target_names=labels, output_dict=True, zero_division=0)
+    matrix = confusion_matrix(y_true, y_pred, labels=list(sorted(id2label))).tolist()
+    metrics = {"classification_report": report, "confusion_matrix": matrix, "labels": labels}
 
-        acc = correct / total if total else 0.0
-        prec = tp / (tp + fp) if (tp + fp) else 0.0
-        rec = tp / (tp + fn) if (tp + fn) else 0.0
-        f1 = 2 * prec * rec / (prec + rec) if (prec + rec) else 0.0
-        print(
-            f"[06_eval_export] test: n={total} acc={acc:.3f} "
-            f"prec(50+)={prec:.3f} rec(50+)={rec:.3f} f1={f1:.3f}"
-        )
-        # TODO(비교): audeering/wav2vec2-...-age-gender zero-shot 으로 같은 test 평가 후
-        #       표로 비교 → 더 나은 모델을 export. 학습본이 더 나쁘면 폴백 유지.
-    else:
-        print("[06_eval_export] test.jsonl 없음 — 평가 생략, export 만 수행.")
-
-    # ── export ────────────────────────────────────────────────
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
-    model.save_pretrained(str(OUTPUT_DIR))
-    feature_extractor.save_pretrained(str(OUTPUT_DIR))
-    print(f"[06_eval_export] exported → {OUTPUT_DIR} (config + safetensors)")
-    print(
-        "  이식: scp -r <remote>:~/module-a/models/age_model "
-        "./module-a/models/age_model"
+    export_dir = Path(args.export_dir)
+    if export_dir.exists():
+        shutil.rmtree(export_dir)
+    shutil.copytree(args.checkpoint, export_dir)
+    (export_dir / "eval_metrics.json").write_text(json.dumps(metrics, ensure_ascii=False, indent=2), encoding="utf-8")
+    (export_dir / "predictions.jsonl").write_text(
+        "\n".join(json.dumps(row, ensure_ascii=False) for row in rows) + "\n",
+        encoding="utf-8",
     )
+    print(json.dumps(metrics, ensure_ascii=False, indent=2))
+    print(f"exported model to {export_dir}")
 
 
 if __name__ == "__main__":

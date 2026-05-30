@@ -10,6 +10,9 @@ class SttConfigTest(unittest.TestCase):
         self.assertIsInstance(create_stt("none", "cpu", "int8"), NoopSTT)
         self.assertIsInstance(create_stt("noop", "cpu", "int8"), NoopSTT)
 
+    def test_noop_stt_reports_unknown_language(self) -> None:
+        self.assertEqual(NoopSTT().transcribe("sample.mp3").language, "unknown")
+
 
 if __name__ == "__main__":
     unittest.main()

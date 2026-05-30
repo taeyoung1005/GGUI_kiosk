@@ -10,15 +10,31 @@ import requests
 
 
 AGE_GROUPS = ("10대", "20대", "30대", "40대", "50+")
+GENDERS = ("female", "male")
 
 # Common ElevenLabs premade voice IDs. These are only demo defaults; for a
 # stronger age impression, override them with voices selected in your account.
-DEFAULT_AGE_VOICE_MAP: dict[str, list[str]] = {
-    "10대": ["EXAVITQu4vr4xnSDxMaL", "MF3mGyEYCl7XYWbV9V6O"],
-    "20대": ["21m00Tcm4TlvDq8ikWAM", "ErXwobaYiN019PkySvjV"],
-    "30대": ["TxGEqnHWrfWFTfGW9XjX", "pNInz6obpgDQGcFmaJgB"],
-    "40대": ["VR6AewLTigWG4xSOukaG", "yoZ06aMxZJJ28mfd3POQ"],
-    "50+": ["pNInz6obpgDQGcFmaJgB", "ErXwobaYiN019PkySvjV"],
+DEFAULT_AGE_VOICE_MAP: dict[str, dict[str, list[str]]] = {
+    "10대": {
+        "female": ["cl7Lq9M5lHPrBM5kbtI6", "Bk8cLrXXi9WCZ4GQU4Ah"],
+        "male": ["SMwXhvo7aw4gwuVT7K0Q", "jjXpgPAFnCKCpTvD2PTJ"],
+    },
+    "20대": {
+        "female": ["FGY2WhTYpPnrIDTdsKH5", "cgSgspJ2msm6clMCkdW9"],
+        "male": ["4hQGiNXzNgJFIkfUJCQT", "TX3LPaxmHKxFdv7VOQHJ"],
+    },
+    "30대": {
+        "female": ["49S3tHf0uTVzQN5pADIu", "XrExE9yKIg1WjnnlVkGX"],
+        "male": ["YYzMbXMx3hpg0mtzGZ89", "CwhRBWXzGAHq8TQ4Fs17"],
+    },
+    "40대": {
+        "female": ["InBZ3nD3eaYhPkNfAsGL", "CZbe9WHlg5BTWN5QLdid"],
+        "male": ["yoWCW4gEzLKzHZAcgCc8", "cjVigY5qzO86Huf0OWal"],
+    },
+    "50+": {
+        "female": ["WaZvG31xdUW4gMSPq7Ud", "YHcCpa6SBWnKDaCPZJQR", "wGcFBfKz5yUQqhqr0mVy"],
+        "male": ["U1nBX3lzKSM937PaYYfk", "sP6cqUGhZxuStGV0pn9o", "pqHfZKP75CvOlQylNhV4"],
+    },
 }
 
 DEFAULT_TEXT_BY_AGE = {
@@ -45,6 +61,7 @@ class AgeVoiceChoice:
     voice_id: str
     default_text: str
     language: str
+    gender: str | None = None
 
 
 class ElevenLabsError(RuntimeError):
@@ -108,38 +125,78 @@ def normalize_language(value: str | None) -> str:
     raise ValueError(f"Unsupported language: {value}")
 
 
-def load_age_voice_map(raw_json: str | None = None) -> dict[str, list[str]]:
+def normalize_gender(value: str | None) -> str | None:
+    if not value:
+        return None
+    text = value.strip().lower()
+    if text in {"m", "man", "male"}:
+        return "male"
+    if text in {"f", "woman", "female"}:
+        return "female"
+    raise ValueError(f"Unsupported gender: {value}")
+
+
+def _copy_default_voice_map() -> dict[str, dict[str, list[str]]]:
+    return {
+        age_group: {gender: list(voices) for gender, voices in gender_map.items()}
+        for age_group, gender_map in DEFAULT_AGE_VOICE_MAP.items()
+    }
+
+
+def _flatten_gender_map(gender_map: dict[str, list[str]]) -> list[str]:
+    voices: list[str] = []
+    for gender in GENDERS:
+        voices.extend(gender_map.get(gender, []))
+    return voices
+
+
+def load_age_voice_map(raw_json: str | None = None) -> dict[str, Any]:
     raw_json = raw_json if raw_json is not None else os.getenv("ELEVENLABS_AGE_VOICE_MAP_JSON", "")
     if not raw_json:
-        return {key: list(value) for key, value in DEFAULT_AGE_VOICE_MAP.items()}
+        return _copy_default_voice_map()
     parsed = json.loads(raw_json)
-    mapping = {key: list(value) for key, value in DEFAULT_AGE_VOICE_MAP.items()}
+    mapping = _copy_default_voice_map()
     for key, voices in parsed.items():
         age_group = normalize_age_group(key)
         if isinstance(voices, str):
-            mapping[age_group] = [voices]
+            mapping[age_group] = {"female": [voices], "male": [voices]}
+        elif isinstance(voices, dict):
+            mapping[age_group] = {
+                normalize_gender(gender) or "female": [str(voice) for voice in values if str(voice).strip()]
+                for gender, values in voices.items()
+            }
         else:
-            mapping[age_group] = [str(voice) for voice in voices if str(voice).strip()]
+            flat_voices = [str(voice) for voice in voices if str(voice).strip()]
+            mapping[age_group] = {"female": flat_voices, "male": flat_voices}
     return mapping
 
 
 def choose_age_voice(
     age_group: str | None,
-    mapping: dict[str, list[str]] | None = None,
+    mapping: dict[str, Any] | None = None,
     seed: int | None = None,
     language: str | None = None,
+    gender: str | None = None,
 ) -> AgeVoiceChoice:
     rng = random.Random(seed) if seed is not None else random
     normalized = normalize_age_group(age_group)
     normalized_language = normalize_language(language)
+    normalized_gender = normalize_gender(gender)
     mapping = mapping or load_age_voice_map()
-    voices = mapping.get(normalized) or DEFAULT_AGE_VOICE_MAP[normalized]
+    voice_pool = mapping.get(normalized) or DEFAULT_AGE_VOICE_MAP[normalized]
+    if isinstance(voice_pool, dict):
+        voices = voice_pool.get(normalized_gender) if normalized_gender else _flatten_gender_map(voice_pool)
+        if not voices:
+            voices = _flatten_gender_map(voice_pool)
+    else:
+        voices = voice_pool
     voice_id = rng.choice(voices)
     return AgeVoiceChoice(
         age_group=normalized,
         voice_id=voice_id,
         default_text=DEFAULT_TEXT_BY_AGE[normalized_language][normalized],
         language=normalized_language,
+        gender=normalized_gender,
     )
 
 

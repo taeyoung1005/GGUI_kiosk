@@ -3,7 +3,7 @@
     "transcript": "Can I get a latte",
     "language": "en",
     "age": {
-      "group": "50+",
+      "group": "sixties",
       "years_est": 67,
       "confidence": 0.72,
       "child_prob": 0.02
@@ -20,7 +20,7 @@
     "transcript": "Can I get a latte",
     "language": "en",
     "age": {
-      "group": "under50",
+      "group": "twenties",
       "years_est": 24,
       "confidence": 0.81,
       "child_prob": 0.01
@@ -479,7 +479,7 @@
   },
   "sampleGenerateUIRequest": {
     "transcript": "Can I get a latte",
-    "age_group": "50+",
+    "age_group": "sixties",
     "assist_level": 2,
     "menu_context": [
       {

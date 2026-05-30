@@ -38,6 +38,7 @@ env/
 
 # ── 모델 / 데이터 (대용량, 이식·생성물) ────────────────────
 models/
+module-a/vendor/
 *.safetensors
 *.pt
 *.bin
@@ -45,6 +46,7 @@ models/
 *.onnx
 # 오디오 클립/원천(학습 데이터)
 data/clips/
+module-a/artifacts/
 *.wav
 *.flac
 # 단, 시드 메뉴 JSON 은 추적

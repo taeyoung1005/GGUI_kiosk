@@ -1,98 +1,70 @@
-"""03_clips.py — 구간 클립 생성(16kHz mono wav).
-
-index.jsonl 의 (wav_path, start, end) → 잘라낸 클립을 $DATA_ROOT/clips/ 에 저장하고
-clips.jsonl(클립경로, speaker_id, label) 을 갱신.
-
-핵심:
-- 16kHz mono 로 통일(나이/STT 모델 입력 규격).
-- 너무 짧은(<0.5s) / 너무 긴(>15s) 구간은 스킵 또는 분할.
-- 화자/라벨 메타 보존(04_split.py 가 사용).
-
-실행:
-    python training/03_clips.py
-
-코드 식별자는 영어, 주석은 한국어.
-"""
-
 from __future__ import annotations
 
-import json
-import os
+import argparse
 from pathlib import Path
 
-DATA_ROOT = Path(os.getenv("DATA_ROOT", "./training/data"))
-INDEX_PATH = DATA_ROOT / "index.jsonl"
-CLIPS_DIR = DATA_ROOT / "clips"
-CLIPS_INDEX = DATA_ROOT / "clips.jsonl"
+import soundfile as sf
+import torchaudio
+from common import iter_jsonl, write_jsonl
 
-TARGET_SR = 16000
-MIN_DUR = 0.5      # 초. 이보다 짧으면 스킵
-MAX_DUR = 15.0     # 초. 이보다 길면 분할 또는 절단
+
+def export_clip(row: dict, out_dir: Path, target_sr: int, min_sec: float, max_sec: float) -> dict | None:
+    duration = float(row["duration"])
+    if duration < min_sec:
+        return None
+    start = float(row["start"])
+    end = min(float(row["end"]), start + max_sec)
+    audio_path = Path(row["audio_path"])
+    if not audio_path.exists():
+        return None
+
+    info = torchaudio.info(str(audio_path))
+    sr = int(info.sample_rate)
+    frame_offset = max(0, int(start * sr))
+    num_frames = max(1, int((end - start) * sr))
+    waveform, sr = torchaudio.load(str(audio_path), frame_offset=frame_offset, num_frames=num_frames)
+    if waveform.shape[0] > 1:
+        waveform = waveform.mean(dim=0, keepdim=True)
+    if sr != target_sr:
+        waveform = torchaudio.functional.resample(waveform, sr, target_sr)
+
+    label = row["age_group"]
+    clip_dir = out_dir / label
+    clip_dir.mkdir(parents=True, exist_ok=True)
+    clip_path = clip_dir / f"{row['id']}.wav"
+    sf.write(clip_path, waveform.squeeze(0).numpy(), target_sr)
+
+    new_row = dict(row)
+    new_row["clip_path"] = str(clip_path)
+    new_row["sample_rate"] = target_sr
+    new_row["duration"] = round(float(waveform.shape[1]) / target_sr, 3)
+    return new_row
 
 
 def main() -> None:
-    CLIPS_DIR.mkdir(parents=True, exist_ok=True)
-    if not INDEX_PATH.exists():
-        print("[03_clips] index.jsonl 없음 — 02_index.py 먼저 실행.")
-        return
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--manifest", default="./data/manifests/raw_segments.jsonl")
+    parser.add_argument("--out-dir", default="./data/clips")
+    parser.add_argument("--out-manifest", default="./data/manifests/clips.jsonl")
+    parser.add_argument("--target-sr", type=int, default=16000)
+    parser.add_argument("--min-sec", type=float, default=1.0)
+    parser.add_argument("--max-sec", type=float, default=12.0)
+    parser.add_argument("--limit", type=int, default=0)
+    args = parser.parse_args()
 
-    # 실모드에서만 무거운 의존성 import
-    try:
-        import librosa
-        import soundfile as sf
-    except Exception:
-        print("[03_clips] librosa/soundfile 미설치 — requirements [inference] 설치 필요.")
-        return
+    out_dir = Path(args.out_dir)
+    rows = []
+    for idx, row in enumerate(iter_jsonl(Path(args.manifest)), start=1):
+        if args.limit and idx > args.limit:
+            break
+        clip = export_clip(row, out_dir, args.target_sr, args.min_sec, args.max_sec)
+        if clip:
+            rows.append(clip)
+        if idx % 1000 == 0:
+            print(f"processed {idx}; clips={len(rows)}")
 
-    written = 0
-    with INDEX_PATH.open(encoding="utf-8") as fin, CLIPS_INDEX.open(
-        "w", encoding="utf-8"
-    ) as fout:
-        for line in fin:
-            r = json.loads(line)
-            wav_path = r.get("wav_path")
-            start = float(r.get("start", 0.0))
-            end = float(r.get("end", 0.0))
-            dur = end - start
-            if not wav_path or dur < MIN_DUR:
-                continue
-
-            # ──────────────────────────────────────────────────
-            # TODO(절단): 긴 구간(dur>MAX_DUR)은 MAX_DUR 윈도우로 슬라이딩 분할.
-            #       지금은 단순 절단(앞 MAX_DUR 초만).
-            # TODO(품질): 무음/잡음 구간 제외(silero-vad 재적용 가능).
-            # ──────────────────────────────────────────────────
-            seg_end = min(end, start + MAX_DUR)
-
-            try:
-                # offset/duration 으로 부분만 로드(메모리 절약)
-                y, _ = librosa.load(
-                    wav_path, sr=TARGET_SR, mono=True,
-                    offset=start, duration=(seg_end - start),
-                )
-            except Exception:
-                continue
-
-            spk = r.get("speaker_id", "unknown")
-            label = int(r.get("label", 0))
-            clip_name = f"{spk}_{written:06d}_{label}.wav"
-            clip_path = CLIPS_DIR / clip_name
-            sf.write(str(clip_path), y, TARGET_SR)
-
-            fout.write(
-                json.dumps(
-                    {
-                        "clip_path": str(clip_path),
-                        "speaker_id": spk,
-                        "label": label,
-                    },
-                    ensure_ascii=False,
-                )
-                + "\n"
-            )
-            written += 1
-
-    print(f"[03_clips] clips written={written} → {CLIPS_DIR}  index={CLIPS_INDEX}")
+    write_jsonl(Path(args.out_manifest), rows)
+    print(f"wrote {len(rows)} clips to {args.out_manifest}")
 
 
 if __name__ == "__main__":

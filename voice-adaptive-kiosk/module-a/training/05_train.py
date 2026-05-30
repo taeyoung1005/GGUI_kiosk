@@ -1,148 +1,116 @@
-"""05_train.py — wav2vec2/HuBERT fine-tuning (이진 "50+ vs under50").
-
-단일 GPU 재현 루프를 먼저 돌린 뒤, torchrun DDP 로 2×4060Ti 확장.
-16GB VRAM 대응을 위해 하위 인코더 층 freeze + gradient accumulation 사용.
-
-데이터: 04_split.py 산출 {train,valid}.jsonl (clip_path, speaker_id, label).
-베이스: $BASE_MODEL (기본 wav2vec2-large-xlsr-53; 한국어 사전학습 가중치 권장).
-
-단일 GPU:
-    python training/05_train.py
-
-DDP (2×4060Ti):
-    torchrun --nproc_per_node=2 training/05_train.py
-
-코드 식별자는 영어, 주석은 한국어.
-"""
-
 from __future__ import annotations
 
-import json
+import argparse
 import os
 from pathlib import Path
 
-DATA_ROOT = Path(os.getenv("DATA_ROOT", "./training/data"))
-OUTPUT_DIR = Path(os.getenv("OUTPUT_DIR", "./models/age_model"))
-BASE_MODEL = os.getenv("BASE_MODEL", "facebook/wav2vec2-large-xlsr-53")
+import evaluate
+import numpy as np
+from datasets import Audio, Dataset
+from transformers import (
+    AutoFeatureExtractor,
+    AutoModelForAudioClassification,
+    Trainer,
+    TrainingArguments,
+)
 
-# 하이퍼파라미터(16GB VRAM × 2 기준 초기값) — TODO: 스윕으로 보정
-NUM_LABELS = 2
-SAMPLE_RATE = 16000
-MAX_SECONDS = 8.0                 # 입력 최대 길이(메모리 상한)
-PER_DEVICE_BATCH = int(os.getenv("PER_DEVICE_BATCH", "4"))
-GRAD_ACCUM = int(os.getenv("GRAD_ACCUM", "8"))   # 유효 배치 = 4*8*GPU수
-EPOCHS = int(os.getenv("EPOCHS", "5"))
-LR = float(os.getenv("LR", "1e-4"))
-FREEZE_FEATURE_ENCODER = True
-FREEZE_FIRST_N_LAYERS = int(os.getenv("FREEZE_FIRST_N_LAYERS", "12"))
+from common import iter_jsonl, label_list
 
 
-def load_split(name: str):
-    path = DATA_ROOT / f"{name}.jsonl"
-    if not path.exists():
-        return []
-    return [json.loads(l) for l in path.open(encoding="utf-8")]
+def load_manifest(path: Path, labels: list[str]) -> Dataset:
+    label2id = {label: idx for idx, label in enumerate(labels)}
+    rows = []
+    for row in iter_jsonl(path):
+        label = row["age_group"]
+        if label not in label2id:
+            continue
+        rows.append({"audio": row["clip_path"], "label": label2id[label]})
+    if not rows:
+        raise SystemExit(f"No trainable rows found in {path}")
+    return Dataset.from_list(rows).cast_column("audio", Audio(sampling_rate=16000))
 
 
 def main() -> None:
-    OUTPUT_DIR.mkdir(parents=True, exist_ok=True)
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--train", default="./data/manifests/train.jsonl")
+    parser.add_argument("--valid", default="./data/manifests/valid.jsonl")
+    parser.add_argument("--output-dir", default="./runs/age-wav2vec2")
+    parser.add_argument("--base-model", default="facebook/wav2vec2-base")
+    parser.add_argument("--class-mode", default=os.getenv("CLASS_MODE", "multiclass"), choices=["multiclass", "binary_50plus"])
+    parser.add_argument("--epochs", type=float, default=3)
+    parser.add_argument("--batch-size", type=int, default=4)
+    parser.add_argument("--grad-accum", type=int, default=4)
+    parser.add_argument("--learning-rate", type=float, default=1e-5)
+    parser.add_argument("--freeze-feature-encoder", action="store_true", default=True)
+    args = parser.parse_args()
 
-    # 실모드 의존성 — 학습 환경에서만 설치(requirements [training]).
-    try:
-        import numpy as np
-        import torch
-        from torch.utils.data import Dataset
-        from transformers import (
-            AutoFeatureExtractor,
-            AutoModelForAudioClassification,
-            Trainer,
-            TrainingArguments,
-        )
-    except Exception as e:
-        print(f"[05_train] 학습 의존성 미설치: {e}\n  pip install torch transformers datasets accelerate")
-        return
+    labels = label_list(args.class_mode)
+    label2id = {label: idx for idx, label in enumerate(labels)}
+    id2label = {idx: label for label, idx in label2id.items()}
 
-    train_rows = load_split("train")
-    valid_rows = load_split("valid")
-    if not train_rows:
-        print("[05_train] train.jsonl 비었음 — 04_split.py 먼저 실행.")
-        return
+    extractor = AutoFeatureExtractor.from_pretrained(args.base_model)
+    train_ds = load_manifest(Path(args.train), labels)
+    valid_ds = load_manifest(Path(args.valid), labels)
 
-    feature_extractor = AutoFeatureExtractor.from_pretrained(BASE_MODEL)
+    def preprocess(batch):
+        arrays = [item["array"] for item in batch["audio"]]
+        inputs = extractor(arrays, sampling_rate=16000, max_length=16000 * 12, truncation=True)
+        inputs["labels"] = batch["label"]
+        return inputs
 
-    class ClipDataset(Dataset):
-        def __init__(self, rows):
-            self.rows = rows
-
-        def __len__(self):
-            return len(self.rows)
-
-        def __getitem__(self, idx):
-            import librosa
-
-            r = self.rows[idx]
-            y, _ = librosa.load(
-                r["clip_path"], sr=SAMPLE_RATE, mono=True, duration=MAX_SECONDS
-            )
-            feats = feature_extractor(
-                y, sampling_rate=SAMPLE_RATE, return_tensors="pt",
-                padding="max_length", truncation=True,
-                max_length=int(SAMPLE_RATE * MAX_SECONDS),
-            )
-            return {
-                "input_values": feats["input_values"][0],
-                "labels": int(r["label"]),
-            }
+    train_ds = train_ds.map(preprocess, batched=True, remove_columns=["audio", "label"], num_proc=2)
+    valid_ds = valid_ds.map(preprocess, batched=True, remove_columns=["audio", "label"], num_proc=2)
 
     model = AutoModelForAudioClassification.from_pretrained(
-        BASE_MODEL, num_labels=NUM_LABELS
+        args.base_model,
+        num_labels=len(labels),
+        label2id=label2id,
+        id2label=id2label,
+        ignore_mismatched_sizes=True,
     )
-
-    # ── 하위층 freeze (VRAM/안정성) ──────────────────────────
-    if FREEZE_FEATURE_ENCODER and hasattr(model, "freeze_feature_encoder"):
+    if args.freeze_feature_encoder and hasattr(model, "freeze_feature_encoder"):
         model.freeze_feature_encoder()
-    # TODO(freeze): 인코더 transformer 하위 N층 동결.
-    #   for i, layer in enumerate(model.wav2vec2.encoder.layers):
-    #       if i < FREEZE_FIRST_N_LAYERS:
-    #           for p in layer.parameters(): p.requires_grad = False
+
+    accuracy = evaluate.load("accuracy")
+    f1 = evaluate.load("f1")
 
     def compute_metrics(eval_pred):
-        logits, labels = eval_pred
-        preds = np.argmax(logits, axis=-1)
-        acc = float((preds == labels).mean())
-        # TODO(지표): F1/recall(50+), 혼동행렬 추가. audeering zero-shot 대비 표.
-        return {"accuracy": acc}
+        predictions = np.argmax(eval_pred.predictions, axis=1)
+        labels_np = eval_pred.label_ids
+        return {
+            "accuracy": accuracy.compute(predictions=predictions, references=labels_np)["accuracy"],
+            "f1_macro": f1.compute(predictions=predictions, references=labels_np, average="macro")["f1"],
+        }
 
-    args = TrainingArguments(
-        output_dir=str(OUTPUT_DIR / "checkpoints"),
-        per_device_train_batch_size=PER_DEVICE_BATCH,
-        per_device_eval_batch_size=PER_DEVICE_BATCH,
-        gradient_accumulation_steps=GRAD_ACCUM,
-        num_train_epochs=EPOCHS,
-        learning_rate=LR,
-        warmup_ratio=0.1,
-        fp16=torch.cuda.is_available(),     # 4060Ti 메모리 절약
-        eval_strategy="epoch" if valid_rows else "no",
+    training_args = TrainingArguments(
+        output_dir=args.output_dir,
+        evaluation_strategy="epoch",
         save_strategy="epoch",
-        logging_steps=50,
+        load_best_model_at_end=True,
+        metric_for_best_model="f1_macro",
+        greater_is_better=True,
+        learning_rate=args.learning_rate,
+        per_device_train_batch_size=args.batch_size,
+        per_device_eval_batch_size=args.batch_size,
+        gradient_accumulation_steps=args.grad_accum,
+        num_train_epochs=args.epochs,
+        fp16=True,
+        logging_steps=25,
+        dataloader_num_workers=2,
         report_to=[],
-        # DDP: torchrun 실행 시 transformers 가 자동으로 분산 초기화.
-        ddp_find_unused_parameters=False,
     )
 
     trainer = Trainer(
         model=model,
-        args=args,
-        train_dataset=ClipDataset(train_rows),
-        eval_dataset=ClipDataset(valid_rows) if valid_rows else None,
-        compute_metrics=compute_metrics if valid_rows else None,
+        args=training_args,
+        train_dataset=train_ds,
+        eval_dataset=valid_ds,
+        tokenizer=extractor,
+        compute_metrics=compute_metrics,
     )
-
     trainer.train()
-    # 중간 산출 저장(최종 export 는 06_eval_export.py)
-    trainer.save_model(str(OUTPUT_DIR / "checkpoints" / "last"))
-    feature_extractor.save_pretrained(str(OUTPUT_DIR / "checkpoints" / "last"))
-    print(f"[05_train] done → {OUTPUT_DIR}/checkpoints/last")
+    trainer.save_model(args.output_dir)
+    extractor.save_pretrained(args.output_dir)
 
 
 if __name__ == "__main__":

@@ -14,8 +14,21 @@
 //   적응 신호 주축 = 행동신호(assist_level 0~3), 나이(age)는 보조.
 // ────────────────────────────────────────────────────────────
 
-/** 나이대 그룹. 타깃은 한국 디지털 취약층(50+) vs 그 이하의 이진 분류. */
-export type AgeGroup = "50+" | "under50";
+/**
+ * 나이대 그룹 — 영어 decade 버킷. 데모는 랜덤 생성, 타겟=50대+ 시니어지만 전 연령 동작.
+ * years_est(연속값)이 정밀 소스, group 은 버킷 라벨. UI 적응의 주축은 assist_level.
+ * 시니어(fifties/sixties/seventies_plus)는 보조로 적응 강도를 한 단계 올린다.
+ */
+export type AgeGroup =
+  | "child"
+  | "teens"
+  | "twenties"
+  | "thirties"
+  | "forties"
+  | "fifties"
+  | "sixties"
+  | "seventies_plus"
+  | "unknown";
 
 export interface AnalyzeResult {
   /** STT 전사 텍스트. 예: "라떼 하나 주세요" */

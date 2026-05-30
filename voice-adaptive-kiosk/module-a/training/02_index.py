@@ -1,103 +1,133 @@
-"""02_index.py — 라벨 메타데이터 인덱싱.
-
-RAW 라벨(JSON)을 순회하여 (오디오파일, 화자ID, 연령대, 발화구간) 행으로 평탄화한 뒤
-$DATA_ROOT/index.jsonl 로 저장. 03_clips.py 가 이 인덱스로 클립을 만든다.
-
-핵심:
-- Speakers[].Agegroup → 이진 라벨 label ∈ {0:under50, 1:50+}.
-- Dialogs[].StartTime/EndTime → 클립 경계(초).
-- speaker_id 보존 → 04_split.py 의 화자 단위 분리(누수 방지)에 필수.
-
-실행:
-    python training/02_index.py
-
-코드 식별자는 영어, 주석은 한국어.
-"""
-
 from __future__ import annotations
 
-import json
-import os
+import argparse
 from pathlib import Path
-from typing import Optional
+from typing import Any
 
-DATA_ROOT = Path(os.getenv("DATA_ROOT", "./training/data"))
-RAW_DIR = DATA_ROOT / "raw"
-INDEX_PATH = DATA_ROOT / "index.jsonl"
-
-# AIHub 71320 의 연령대 라벨 문자열 → 이진 매핑.
-# TODO: 실제 라벨 표기를 데이터로 확인 후 보정(예: "50대","60대","70대 이상" 등).
-#       "데이터 최상단이 50+ 라 60+ 분리는 불가" → 타깃을 50+ 로 정의(SPEC/PIPELINE).
-FIFTY_PLUS_TOKENS = ("50", "60", "70", "80", "오십", "육십", "칠십", "팔십")
+from common import normalize_age_group, read_json, to_seconds, write_jsonl
 
 
-def agegroup_to_binary(agegroup: str) -> Optional[int]:
-    """연령대 문자열 → 1(50+) / 0(under50) / None(판단불가)."""
-    if not agegroup:
-        return None
-    s = str(agegroup)
-    for tok in FIFTY_PLUS_TOKENS:
-        if tok in s:
-            return 1
-    # 10/20/30/40대 → under50
-    for tok in ("10", "20", "30", "40", "십", "이십", "삼십", "사십"):
-        if tok in s:
-            return 0
+AUDIO_SUFFIXES = {".wav", ".mp3", ".flac", ".m4a", ".ogg"}
+
+
+def first_value(data: dict[str, Any], keys: tuple[str, ...]) -> Any:
+    lowered = {str(k).lower(): v for k, v in data.items()}
+    for key in keys:
+        if key in data:
+            return data[key]
+        if key.lower() in lowered:
+            return lowered[key.lower()]
     return None
 
 
-def main() -> None:
-    DATA_ROOT.mkdir(parents=True, exist_ok=True)
-    labels_dir = RAW_DIR / "labels"
+def build_audio_index(root: Path) -> dict[str, Path]:
+    index: dict[str, Path] = {}
+    for path in root.rglob("*"):
+        if path.suffix.lower() in AUDIO_SUFFIXES:
+            index[path.name] = path
+            index[path.stem] = path
+    return index
 
-    rows = []
-    if labels_dir.exists():
-        for label_file in labels_dir.glob("**/*.json"):
-            # ──────────────────────────────────────────────────
-            # TODO(파싱): 71320 라벨 JSON 실제 스키마에 맞게 키 경로 보정.
-            #   가정 구조:
-            #     {
-            #       "Speakers": [{"SpeakerId": "...", "Agegroup": "60대"} , ...],
-            #       "Dialogs":  [{"SpeakerId":"...","StartTime":..,"EndTime":..,
-            #                     "WavPath":"...","Text":"..."} , ...]
-            #     }
-            # ──────────────────────────────────────────────────
-            try:
-                meta = json.loads(label_file.read_text(encoding="utf-8"))
-            except Exception:
-                continue
 
-            speakers = {
-                sp.get("SpeakerId"): sp.get("Agegroup")
-                for sp in meta.get("Speakers", [])
+def speakers_by_id(data: dict[str, Any], class_mode: str) -> dict[str, str]:
+    speakers = first_value(data, ("Speakers", "Speaker", "speakers", "speaker")) or []
+    if isinstance(speakers, dict):
+        speakers = list(speakers.values())
+    result: dict[str, str] = {}
+    for speaker in speakers:
+        if not isinstance(speaker, dict):
+            continue
+        speaker_id = first_value(speaker, ("SpeakerID", "SpeakerId", "Speaker", "ID", "id", "name"))
+        age = first_value(speaker, ("Agegroup", "AgeGroup", "agegroup", "화자연령대", "연령대", "age"))
+        label = normalize_age_group(age, class_mode)
+        if speaker_id is not None and label:
+            result[str(speaker_id)] = label
+    return result
+
+
+def resolve_audio(data: dict[str, Any], json_path: Path, audio_index: dict[str, Path]) -> Path | None:
+    candidates: list[str] = []
+    for key in ("MediaUrl", "mediaUrl", "AudioPath", "audioPath", "FileName", "filename", "Wav", "wav"):
+        value = first_value(data, (key,))
+        if value:
+            candidates.append(str(value))
+    candidates.append(json_path.with_suffix(".wav").name)
+    candidates.append(json_path.stem)
+
+    for candidate in candidates:
+        name = Path(candidate).name
+        stem = Path(candidate).stem
+        if name in audio_index:
+            return audio_index[name]
+        if stem in audio_index:
+            return audio_index[stem]
+    return None
+
+
+def index_json(json_path: Path, audio_index: dict[str, Path], class_mode: str) -> list[dict[str, Any]]:
+    data = read_json(json_path)
+    if not isinstance(data, dict):
+        return []
+    audio_path = resolve_audio(data, json_path, audio_index)
+    if audio_path is None:
+        return []
+
+    speaker_labels = speakers_by_id(data, class_mode)
+    dialogs = first_value(data, ("Dialogs", "dialogs", "Utterances", "utterances", "segments")) or []
+    if isinstance(dialogs, dict):
+        dialogs = list(dialogs.values())
+
+    rows: list[dict[str, Any]] = []
+    for idx, dialog in enumerate(dialogs):
+        if not isinstance(dialog, dict):
+            continue
+        speaker_id = first_value(dialog, ("SpeakerID", "SpeakerId", "Speaker", "speaker", "speaker_id"))
+        label = speaker_labels.get(str(speaker_id)) if speaker_id is not None else None
+        if not label and len(set(speaker_labels.values())) == 1:
+            label = next(iter(speaker_labels.values()))
+        start = to_seconds(first_value(dialog, ("StartTime", "startTime", "start", "begin", "시작시간")))
+        end = to_seconds(first_value(dialog, ("EndTime", "endTime", "end", "finish", "종료시간")))
+        text = first_value(dialog, ("SpeakerText", "Speakertext", "text", "Text", "발화", "전사"))
+        if not label or start is None or end is None or end <= start:
+            continue
+        rows.append(
+            {
+                "id": f"{json_path.stem}_{idx:05d}",
+                "json_path": str(json_path),
+                "audio_path": str(audio_path),
+                "speaker_id": str(speaker_id) if speaker_id is not None else "",
+                "age_group": label,
+                "start": round(float(start), 3),
+                "end": round(float(end), 3),
+                "duration": round(float(end - start), 3),
+                "text": str(text or ""),
             }
-            for d in meta.get("Dialogs", []):
-                spk = d.get("SpeakerId")
-                label = agegroup_to_binary(speakers.get(spk, ""))
-                if label is None:
-                    continue
-                rows.append(
-                    {
-                        "wav_path": d.get("WavPath") or d.get("AudioPath"),
-                        "speaker_id": spk,
-                        "label": label,             # 0/1
-                        "start": float(d.get("StartTime", 0.0)),
-                        "end": float(d.get("EndTime", 0.0)),
-                        "text": d.get("Text", ""),
-                    }
-                )
+        )
+    return rows
 
-    with INDEX_PATH.open("w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
 
-    n_pos = sum(1 for r in rows if r["label"] == 1)
-    print(
-        f"[02_index] rows={len(rows)} (50+={n_pos}, under50={len(rows)-n_pos}) "
-        f"→ {INDEX_PATH}"
-    )
-    if not rows:
-        print("[02_index] (주의) 인덱스가 비었습니다. 01_download 결과/라벨 경로 확인.")
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--data-root", default="./data/aihub/raw")
+    parser.add_argument("--out", default="./data/manifests/raw_segments.jsonl")
+    parser.add_argument("--class-mode", default="multiclass", choices=["multiclass", "binary_50plus"])
+    parser.add_argument("--limit-json", type=int, default=0)
+    args = parser.parse_args()
+
+    data_root = Path(args.data_root)
+    audio_index = build_audio_index(data_root)
+    json_paths = list(data_root.rglob("*.json"))
+    if args.limit_json:
+        json_paths = json_paths[: args.limit_json]
+
+    rows: list[dict[str, Any]] = []
+    for idx, json_path in enumerate(json_paths, start=1):
+        rows.extend(index_json(json_path, audio_index, args.class_mode))
+        if idx % 1000 == 0:
+            print(f"indexed {idx}/{len(json_paths)} json files; rows={len(rows)}")
+
+    write_jsonl(Path(args.out), rows)
+    print(f"wrote {len(rows)} rows to {args.out}")
 
 
 if __name__ == "__main__":

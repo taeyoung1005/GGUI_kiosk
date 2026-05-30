@@ -5,13 +5,14 @@ import csv
 import json
 import random
 import time
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
 import requests
 
 
-DECADES = [f"{decade}대" for decade in range(0, 100, 10)]
+AGE_GROUPS = ["10대", "20대", "30대", "40대", "50+"]
 GENDERS = ["female", "male"]
 LANGUAGES = ["en", "ko"]
 
@@ -42,12 +43,35 @@ KO_PROMPTS = [
 ]
 
 
-def make_prompt(decade: str, language: str, index: int, gender: str = "female") -> str:
+@dataclass(frozen=True)
+class PlannedSample:
+    age_group: str
+    gender: str
+    prompt_index: int
+
+
+def english_age_phrase(age_group: str) -> str:
+    if age_group == "50+":
+        return "50s and older"
+    return age_group.replace("대", "s")
+
+
+def build_balanced_plan(samples: int) -> list[PlannedSample]:
+    cells = [(age_group, gender) for age_group in AGE_GROUPS for gender in GENDERS]
+    plan: list[PlannedSample] = []
+    for idx in range(samples):
+        age_group, gender = cells[idx % len(cells)]
+        prompt_index = idx // len(cells)
+        plan.append(PlannedSample(age_group=age_group, gender=gender, prompt_index=prompt_index))
+    return plan
+
+
+def make_prompt(age_group: str, language: str, index: int, gender: str = "female") -> str:
     prompts = KO_PROMPTS if language == "ko" else EN_PROMPTS
     base = prompts[index % len(prompts)]
     if language == "ko":
-        return f"{decade} {gender} 테스트 음성입니다. {base}"
-    return f"This is a {gender} speaker in their {decade.replace('대', 's')}. {base}"
+        return f"{age_group} {gender} 테스트 음성입니다. {base}"
+    return f"This is a {gender} speaker in their {english_age_phrase(age_group)}. {base}"
 
 
 def age_to_decade(years_est: float | None) -> str:
@@ -58,6 +82,12 @@ def age_to_decade(years_est: float | None) -> str:
 
 
 def expected_match(expected_decade: str, predicted_decade: str) -> bool:
+    if expected_decade == "50+":
+        try:
+            predicted_years = int(predicted_decade.replace("대", ""))
+        except ValueError:
+            return False
+        return predicted_years >= 50
     return expected_decade == predicted_decade
 
 
@@ -69,46 +99,46 @@ def run_batch(base_url: str, out_dir: Path, samples: int, language: str, seed: i
     rng = random.Random(seed)
     out_dir.mkdir(parents=True, exist_ok=True)
     rows = []
-    per_decade = max(1, samples // len(DECADES))
-    planned = []
-    for decade in DECADES:
-        for idx in range(per_decade):
-            planned.append((decade, idx))
-    planned = planned[:samples]
+    planned = build_balanced_plan(samples)
 
-    for sample_idx, (decade, prompt_idx) in enumerate(planned, start=1):
-        gender = GENDERS[(sample_idx + seed) % len(GENDERS)]
-        text = make_prompt(decade, language, prompt_idx, gender)
-        if decade == "0대":
-            age_group_for_voice = "10대"
-        elif decade in {"50대", "60대", "70대", "80대", "90대"}:
-            age_group_for_voice = "50+"
-        else:
-            age_group_for_voice = decade
+    for sample_idx, sample in enumerate(planned, start=1):
+        age_group = sample.age_group
+        gender = sample.gender
+        text = make_prompt(age_group, language, sample.prompt_index, gender)
         payload = {
-            "age_group": age_group_for_voice,
+            "age_group": age_group,
+            "gender": gender,
             "language": language,
             "seed": rng.randint(0, 1_000_000),
             "text": text,
         }
-        audio_path = out_dir / f"{sample_idx:03d}_{language}_{decade}_{gender}.mp3"
+        safe_age = age_group.replace("+", "plus")
+        audio_path = out_dir / f"{sample_idx:03d}_{language}_{safe_age}_{gender}.mp3"
         row = {
             "sample_idx": sample_idx,
             "language": language,
-            "expected_decade": decade,
+            "expected_decade": age_group,
+            "target_age_group": age_group,
             "gender_prompt": gender,
             "text": text,
             "audio_path": str(audio_path),
             "status": "pending",
+            "audio_source": "generated",
         }
         try:
-            tts = post_json(base_url, "/demo/random-age-voice/audio", payload)
-            if tts.status_code != 200:
-                row.update({"status": "tts_error", "error": tts.text[:500]})
-                rows.append(row)
-                continue
-            audio_path.write_bytes(tts.content)
-            analyze = requests.post(f"{base_url}/analyze", files={"file": audio_path.open("rb")}, timeout=120)
+            if audio_path.exists() and audio_path.stat().st_size > 0:
+                row["audio_source"] = "reused"
+            else:
+                tts = post_json(base_url, "/demo/random-age-voice/audio", payload)
+                if tts.status_code != 200:
+                    row.update({"status": "tts_error", "error": tts.text[:500]})
+                    rows.append(row)
+                    continue
+                audio_path.write_bytes(tts.content)
+                row["voice_id"] = tts.headers.get("x-voice-id", "")
+
+            with audio_path.open("rb") as audio_fp:
+                analyze = requests.post(f"{base_url}/analyze", files={"file": audio_fp}, timeout=120)
             if analyze.status_code != 200:
                 row.update({"status": "analyze_error", "error": analyze.text[:500]})
                 rows.append(row)
@@ -119,19 +149,18 @@ def run_batch(base_url: str, out_dir: Path, samples: int, language: str, seed: i
             row.update(
                 {
                     "status": "ok",
-                    "voice_id": tts.headers.get("x-voice-id", ""),
                     "predicted_group": result.get("age", {}).get("group", ""),
                     "years_est": years_est,
                     "confidence": result.get("age", {}).get("confidence", ""),
                     "predicted_decade": predicted_decade,
-                    "match": expected_match(decade, predicted_decade),
+                    "match": expected_match(age_group, predicted_decade),
                     "duration_ms": result.get("duration_ms", ""),
                 }
             )
         except Exception as exc:
             row.update({"status": "exception", "error": repr(exc)})
         rows.append(row)
-        print(f"[{sample_idx}/{len(planned)}] {row['status']} {decade} {gender} -> {row.get('predicted_decade', '-')}")
+        print(f"[{sample_idx}/{len(planned)}] {row['status']} {age_group} {gender} -> {row.get('predicted_decade', '-')}")
         if sleep_sec:
             time.sleep(sleep_sec)
 
@@ -148,15 +177,27 @@ def run_batch(base_url: str, out_dir: Path, samples: int, language: str, seed: i
         "ok": len(ok_rows),
         "match": sum(1 for row in ok_rows if row.get("match") is True),
         "by_expected_decade": {},
+        "by_gender": {},
     }
-    for decade in DECADES:
-        decade_rows = [row for row in ok_rows if row["expected_decade"] == decade]
-        summary["by_expected_decade"][decade] = {
-            "ok": len(decade_rows),
-            "match": sum(1 for row in decade_rows if row.get("match") is True),
+    for age_group in AGE_GROUPS:
+        age_rows = [row for row in ok_rows if row["expected_decade"] == age_group]
+        summary["by_expected_decade"][age_group] = {
+            "ok": len(age_rows),
+            "match": sum(1 for row in age_rows if row.get("match") is True),
             "avg_years_est": (
-                round(sum(float(row["years_est"]) for row in decade_rows if row.get("years_est") != "") / len(decade_rows), 2)
-                if decade_rows
+                round(sum(float(row["years_est"]) for row in age_rows if row.get("years_est") != "") / len(age_rows), 2)
+                if age_rows
+                else None
+            ),
+        }
+    for gender in GENDERS:
+        gender_rows = [row for row in ok_rows if row["gender_prompt"] == gender]
+        summary["by_gender"][gender] = {
+            "ok": len(gender_rows),
+            "match": sum(1 for row in gender_rows if row.get("match") is True),
+            "avg_years_est": (
+                round(sum(float(row["years_est"]) for row in gender_rows if row.get("years_est") != "") / len(gender_rows), 2)
+                if gender_rows
                 else None
             ),
         }

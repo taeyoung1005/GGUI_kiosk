@@ -20,8 +20,11 @@ from pydantic import BaseModel, Field
 # 타입 별칭
 # ──────────────────────────────────────────────────────────────
 
-# 나이대 그룹 — 한국 디지털 취약층(50+) vs 그 이하 이진 분류
-AgeGroup = Literal["50+", "under50"]
+# 나이대 그룹 — 영어 decade 버킷(전 연령). 타겟=50대+, 데모는 랜덤 생성.
+AgeGroup = Literal[
+    "child", "teens", "twenties", "thirties",
+    "forties", "fifties", "sixties", "seventies_plus", "unknown",
+]
 
 # UI 적응 강도 (주축 신호) 0~3
 AssistLevel = Literal[0, 1, 2, 3]

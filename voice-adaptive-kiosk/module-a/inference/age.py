@@ -1,217 +1,153 @@
-"""나이·성별 분류 — vox-profile WavLMWrapper (tiantiaf/wavlm-large-age-sex).
-
-베이스: microsoft/wavlm-large + LoRA + age/sex 다운스트림 헤드 (Vox-Profile, arXiv:2505.14648).
-모델 코드는 inference/vox_profile/ 에 vendoring(wavlm_demographics.py, revgrad*.py).
-
-출력(AnalyzeResult.age 와 매핑):
-- group:      "50+" (years_est>=50) | "under50"   ← 보조 신호
-- years_est:  추정 나이(년). 회귀 출력 age*100.
-- confidence: 50 경계로부터의 거리 + 성별 신뢰도 근사.
-- child_prob: 아동 화자 확률(이 모델은 child 클래스가 없어 나이에서 근사).
-
-모델 우선순위:
-1) AGE_MODEL_PATH(로컬 fine-tuned/이식 모델) 우선.
-2) 없으면 AGE_HF_MODEL(기본 tiantiaf/wavlm-large-age-sex) 허브 로드.
-
-입력 요구(원저자): 16kHz mono, 3~15초 권장(짧으면 불안정, 긴 건 15초로 절단).
-
-환경변수:
-- MOCK_MODE      : "1"이면 mock (기본)
-- AGE_MODEL_PATH : 로컬 모델 디렉토리(있으면 우선)
-- AGE_HF_MODEL   : 허브 모델 id (기본 tiantiaf/wavlm-large-age-sex)
-- AGE_DEVICE     : "cpu" | "cuda" | "mps" (기본 cuda>cpu; WavLM은 cpu가 안전)
-
-의존성(실모드): torch, transformers, speechbrain, loralib, huggingface_hub, soundfile/librosa.
-코드 식별자는 영어, 주석은 한국어.
-"""
-
 from __future__ import annotations
 
-import os
-import sys
 from dataclasses import dataclass
-from functools import lru_cache
+import os
 from pathlib import Path
-from typing import Optional
+import sys
+from typing import Any
 
 import numpy as np
 
-AGE_THRESHOLD = 50          # 이 나이 이상이면 "50+"
-DEFAULT_HF_MODEL = "tiantiaf/wavlm-large-age-sex"
-TARGET_SR = 16000           # 모델 입력 샘플레이트
-MAX_SECONDS = 15            # 원저자 권장 상한 (그 이상은 절단)
-SEX_LABELS = ("Female", "Male")
 
-# vendoring 된 vox-profile 모델 코드 디렉토리 (flat import 용 sys.path 등록)
-_VOX_DIR = str(Path(__file__).resolve().parent / "vox_profile")
-
-
-@dataclass(frozen=True)
-class AgeResult:
-    """나이 분류 산출물. AnalyzeResult.age 로 매핑."""
-
-    group: str          # "50+" | "under50"
-    years_est: int
+@dataclass
+class AgePrediction:
+    group: str
     confidence: float
-    child_prob: float
+    years_est: float | None = None
+    child_prob: float = 0.0
 
 
-def _is_mock() -> bool:
-    return os.getenv("MOCK_MODE", "1") == "1"
+def _to_float(value: Any) -> float:
+    array = np.asarray(value, dtype=np.float32)
+    return float(array.reshape(-1)[0])
 
 
-def _group_for(years: int) -> str:
-    return "50+" if years >= AGE_THRESHOLD else "under50"
+def age_years_to_group(years: float) -> str:
+    years = max(0.0, min(100.0, float(years)))
+    if years < 20:
+        return "10대"
+    if years < 30:
+        return "20대"
+    if years < 40:
+        return "30대"
+    if years < 50:
+        return "40대"
+    return "50+"
 
 
-# ──────────────────────────────────────────────────────────────
-# MOCK 경로
-# ──────────────────────────────────────────────────────────────
-
-
-def _mock_classify() -> AgeResult:
-    # 데모 기본값: 고령 화자(67세)로 고정 → assist 가산 시나리오와 일관.
-    years = 67
-    return AgeResult(
-        group=_group_for(years),
-        years_est=years,
-        confidence=0.72,
-        child_prob=0.02,
+def prediction_from_years(years: Any, confidence: float = 1.0) -> AgePrediction:
+    years_float = max(0.0, min(100.0, _to_float(years)))
+    confidence_float = max(0.0, min(1.0, float(confidence)))
+    return AgePrediction(
+        group=age_years_to_group(years_float),
+        years_est=round(years_float, 2),
+        confidence=confidence_float,
+        child_prob=1.0 if years_float < 13 else 0.0,
     )
 
 
-# ──────────────────────────────────────────────────────────────
-# 실모델 경로 (vox-profile WavLMWrapper)
-# ──────────────────────────────────────────────────────────────
+class AgeClassifier:
+    def __init__(self, model_path: str | Path, device: str | None = None) -> None:
+        import torch
+        from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
 
+        self.model_path = Path(model_path)
+        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
+        self.extractor = AutoFeatureExtractor.from_pretrained(self.model_path)
+        self.model = AutoModelForAudioClassification.from_pretrained(self.model_path)
+        self.model.to(self.device)
+        self.model.eval()
+        self.id2label = self.model.config.id2label
 
-def _pick_device() -> str:
-    forced = os.getenv("AGE_DEVICE")
-    if forced:
-        return forced
-    try:
+    def predict(self, audio: np.ndarray, sampling_rate: int) -> AgePrediction:
         import torch
 
-        if torch.cuda.is_available():
-            return "cuda"
-    except Exception:
-        pass
-    # WavLM-large + speechbrain 조합은 mps 미검증 → cpu 가 가장 안전.
-    return "cpu"
+        with torch.inference_mode():
+            inputs = self.extractor(
+                audio,
+                sampling_rate=sampling_rate,
+                return_tensors="pt",
+                padding=True,
+            )
+            inputs = {key: value.to(self.device) for key, value in inputs.items()}
+            logits = self.model(**inputs).logits[0]
+        probs = torch.softmax(logits, dim=-1).detach().cpu().numpy()
+        idx = int(probs.argmax())
+        label = str(self.id2label[idx])
+        return AgePrediction(group=label, confidence=float(probs[idx]), child_prob=0.0)
 
 
-@lru_cache(maxsize=1)
-def _load_model():
-    """WavLMWrapper(age-sex) 로드(1회 캐시).
+class VoxProfileWavLMAgeSexClassifier:
+    model_id = "tiantiaf/wavlm-large-age-sex"
 
-    AGE_MODEL_PATH(로컬) 우선, 없으면 AGE_HF_MODEL 허브.
-    실모드에서만 import → MOCK_MODE 에서는 torch/speechbrain 미설치여도 동작.
-    """
-    import torch  # noqa: F401
+    def __init__(self, device: str | None = None) -> None:
+        import torch
 
-    if _VOX_DIR not in sys.path:
-        sys.path.insert(0, _VOX_DIR)
-    from wavlm_demographics import WavLMWrapper  # vendoring 된 모델
+        self._ensure_vox_profile_import_path()
+        try:
+            from src.model.age_sex.wavlm_demographics import WavLMWrapper
+        except Exception as exc:
+            raise RuntimeError(
+                "Vox-Profile source is not available. Clone it to "
+                "`module-a/vendor/vox-profile-release` or set VOX_PROFILE_REPO."
+            ) from exc
 
-    model_path = os.getenv("AGE_MODEL_PATH", "").strip()
-    source = model_path or os.getenv("AGE_HF_MODEL", DEFAULT_HF_MODEL)
+        self.torch = torch
+        self.device = torch.device(device or ("mps" if torch.backends.mps.is_available() else "cuda" if torch.cuda.is_available() else "cpu"))
+        self.model = WavLMWrapper.from_pretrained(self.model_id).to(self.device)
+        self.model.eval()
 
-    device = _pick_device()
-    model = WavLMWrapper.from_pretrained(source).to(device)
-    model.eval()
-    return model, device
+    @staticmethod
+    def _ensure_vox_profile_import_path() -> None:
+        default_repo = Path(__file__).resolve().parents[1] / "vendor" / "vox-profile-release"
+        repo_path = Path(os.getenv("VOX_PROFILE_REPO", default_repo)).expanduser().resolve()
+        candidates = [
+            repo_path,
+            repo_path / "src" / "model",
+            repo_path / "src" / "model" / "age_sex",
+        ]
+        for candidate in candidates:
+            if candidate.exists():
+                candidate_str = str(candidate)
+                if candidate_str not in sys.path:
+                    sys.path.insert(0, candidate_str)
 
+    @staticmethod
+    def _prepare_audio(audio: np.ndarray, sampling_rate: int) -> np.ndarray:
+        if sampling_rate != 16000:
+            raise ValueError("VoxProfileWavLMAgeSexClassifier expects 16kHz audio.")
+        audio = np.asarray(audio, dtype=np.float32).reshape(-1)
+        max_samples = 15 * 16000
+        if len(audio) > max_samples:
+            audio = audio[:max_samples]
+        if len(audio) < 16000:
+            audio = np.pad(audio, (0, 16000 - len(audio)))
+        return audio
 
-def _load_waveform(audio_path: str) -> np.ndarray:
-    """16kHz mono float32 파형 로드. soundfile 우선, 실패 시 librosa 폴백. 15초로 절단."""
-    try:
-        import soundfile as sf
-
-        wav, sr = sf.read(audio_path, dtype="float32", always_2d=False)
-        if wav.ndim > 1:
-            wav = wav.mean(axis=1)  # mono 다운믹스
-        if sr != TARGET_SR:
-            import librosa
-
-            wav = librosa.resample(wav, orig_sr=sr, target_sr=TARGET_SR)
-        wav = wav.astype(np.float32)
-    except Exception:
-        import librosa
-
-        wav, _ = librosa.load(audio_path, sr=TARGET_SR, mono=True)
-        wav = wav.astype(np.float32)
-
-    max_len = MAX_SECONDS * TARGET_SR
-    if wav.shape[0] > max_len:
-        wav = wav[:max_len]
-    return wav
-
-
-# 7-class(apply_reg=False) 폴백용 연령대 대표값 근사. 회귀 모델이면 사용 안 함.
-_AGE_BUCKET_MIDPOINTS = (8, 18, 28, 38, 48, 60, 75)
-
-
-def _parse_age_years(age_out) -> int:
-    """age 출력 → 나이(년). 회귀([B,1])면 *100, 7-class면 argmax 버킷 대표값."""
-    import torch
-
-    t = torch.as_tensor(age_out).detach().float().flatten()
-    n = t.numel()
-    if n == 1:
-        years = float(t[0]) * 100.0           # 회귀(sigmoid) → 0~100
-    elif n == len(_AGE_BUCKET_MIDPOINTS):
-        idx = int(torch.argmax(t).item())     # 7-class 폴백
-        years = float(_AGE_BUCKET_MIDPOINTS[idx])
-    else:
-        years = float(t[0]) * 100.0           # 알 수 없는 형태 → 회귀로 간주
-    return max(0, min(120, int(round(years))))
+    def predict(self, audio: np.ndarray, sampling_rate: int) -> AgePrediction:
+        torch = self.torch
+        prepared = self._prepare_audio(audio, sampling_rate)
+        tensor = torch.from_numpy(prepared).float().unsqueeze(0).to(self.device)
+        with torch.inference_mode():
+            age_output, sex_output = self.model(tensor)
+            age_years = age_output.detach().cpu().numpy() * 100.0
+            sex_prob = torch.softmax(sex_output, dim=1).detach().cpu().numpy()
+        confidence = float(np.max(sex_prob))
+        return prediction_from_years(age_years, confidence=confidence)
 
 
-def _real_classify(audio_path: str) -> AgeResult:
-    import torch
-
-    model, device = _load_model()
-    wav = _load_waveform(audio_path)
-
-    data = torch.from_numpy(wav).float().unsqueeze(0).to(device)  # [1, T]
-    with torch.no_grad():
-        age_out, sex_out = model(data)  # forward → (age, sex)
-
-    years = _parse_age_years(age_out)
-
-    sex_prob = torch.softmax(torch.as_tensor(sex_out).float().flatten(), dim=0)
-    sex_conf = float(sex_prob.max().item())
-
-    # 이 모델은 child 클래스가 없음 → 나이에서 아동 확률 근사(13세 미만일수록 ↑).
-    child_prob = max(0.0, min(1.0, (13.0 - years) / 13.0))
-
-    # confidence: 50 경계로부터의 거리 × 성별 신뢰도 (회귀라 직접 신뢰도 없음 → 근사).
-    boundary_dist = min(1.0, abs(years - AGE_THRESHOLD) / 50.0)
-    confidence = float(max(0.0, min(1.0, (0.5 + 0.5 * boundary_dist) * sex_conf)))
-
-    return AgeResult(
-        group=_group_for(years),
-        years_est=years,
-        confidence=round(confidence, 3),
-        child_prob=round(child_prob, 3),
-    )
+class MissingAgeModel:
+    def predict(self, audio: np.ndarray, sampling_rate: int) -> AgePrediction:
+        return AgePrediction(group="unknown", confidence=0.0, child_prob=0.0)
 
 
-# ──────────────────────────────────────────────────────────────
-# 공개 API
-# ──────────────────────────────────────────────────────────────
-
-
-def classify(audio_path: Optional[str]) -> AgeResult:
-    """오디오 파일 경로 → AgeResult.
-
-    MOCK_MODE=1 이거나 audio_path 가 없으면 고정 mock 반환.
-    실모드에서 추론 실패 시에도 안전하게 mock 으로 폴백(데모 무중단).
-    """
-    if _is_mock() or not audio_path:
-        return _mock_classify()
-    try:
-        return _real_classify(audio_path)
-    except Exception:
-        # 모델/의존성 미비 시 폴백 — 행동신호가 스파인이라 무중단이 우선.
-        return _mock_classify()
+def create_age_model(provider: str, model_path: str | Path, device: str | None = None):
+    normalized = provider.strip().lower()
+    if normalized in {"wavlm_age_sex", "vox_profile", "tiantiaf"}:
+        return VoxProfileWavLMAgeSexClassifier(device=device)
+    if normalized in {"local", "trained", "age_model"}:
+        model_path = Path(model_path)
+        if model_path.exists() and (model_path / "config.json").exists():
+            return AgeClassifier(model_path, device=device)
+        return MissingAgeModel()
+    raise ValueError(f"Unsupported AGE_MODEL_PROVIDER: {provider}")

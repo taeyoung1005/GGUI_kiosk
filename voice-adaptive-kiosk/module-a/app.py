@@ -1,300 +1,303 @@
-"""Module A — AI 추론 서비스 (FastAPI).
-
-책임: 음성(wav 16kHz mono) → AnalyzeResult(STT + 나이 + 행동신호).
-
-엔드포인트:
-- POST /analyze : multipart(file=audio) 또는 JSON({audio_base64}) → AnalyzeResult
-- GET  /health  : 헬스체크 + 현재 모드(mock 여부)
-
-처리 흐름(SPEC §2.4):
-  audio → vad.split → [stt.transcribe → transcript+ts] + [age.classify → group]
-        → behavioral.score(ts, transcript, segments) → assist_level
-        → AnalyzeResult
-
-MOCK_MODE=1(기본): 외부 모델 없이 즉시 기동, 유효한 AnalyzeResult 반환.
-
-실행:
-  uvicorn app:app --port 8000           # module-a/ 에서
-  (또는)  python app.py
-
-코드 식별자는 영어, 주석/문서는 한국어.
-"""
-
 from __future__ import annotations
 
 import base64
+import csv
+import json
 import os
-import sys
 import tempfile
 import time
-import wave
+from collections import Counter
 from pathlib import Path
-from typing import Optional
+from urllib.parse import quote
 
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
-from fastapi.middleware.cors import CORSMiddleware
+import librosa
+from dotenv import load_dotenv
+from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi.responses import FileResponse, Response
+from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
-# ──────────────────────────────────────────────────────────────
-# contracts/schemas.py import 경로 설정
-#   레이아웃: voice-adaptive-kiosk/{contracts, module-a}
-#   module-a 에서 실행해도 contracts 를 import 할 수 있도록 루트를 sys.path 에 추가.
-# ──────────────────────────────────────────────────────────────
-_THIS_DIR = Path(__file__).resolve().parent          # .../module-a
-_PROJECT_ROOT = _THIS_DIR.parent                     # .../voice-adaptive-kiosk
-for _p in (str(_PROJECT_ROOT), str(_THIS_DIR)):
-    if _p not in sys.path:
-        sys.path.insert(0, _p)
+from inference.age import create_age_model
+from inference.behavioral import score_behavioral
+from inference.elevenlabs_voice import ElevenLabsClient, ElevenLabsError, choose_age_voice, load_age_voice_map
+from inference.stt import NoopSTT, create_stt
 
 
-# ──────────────────────────────────────────────────────────────
-# .env.local / .env 경량 로더 (의존성 없이)
-#   우선순위: 실제 셸 export > .env.local > .env
-#   (setdefault 라 이미 set 된 env 는 덮어쓰지 않음 → 셸 export 가 최우선)
-# ──────────────────────────────────────────────────────────────
-def _load_dotenv() -> None:
-    for _name in (".env.local", ".env"):
-        _path = _THIS_DIR / _name
-        if not _path.exists():
-            continue
-        for _raw in _path.read_text(encoding="utf-8").splitlines():
-            _line = _raw.strip()
-            if not _line or _line.startswith("#") or "=" not in _line:
-                continue
-            _k, _v = _line.split("=", 1)
-            _k, _v = _k.strip(), _v.strip()
-            if (_v[:1] == '"' and _v[-1:] == '"') or (_v[:1] == "'" and _v[-1:] == "'"):
-                _v = _v[1:-1]
-            os.environ.setdefault(_k, _v)
+load_dotenv()
+
+API_KEY = os.getenv("API_KEY", "")
+AGE_MODEL_PATH = Path(os.getenv("AGE_MODEL_PATH", "./models/age_model"))
+AGE_MODEL_PROVIDER = os.getenv("AGE_MODEL_PROVIDER", "local")
+AGE_DEVICE = os.getenv("AGE_DEVICE") or None
+STT_MODEL = os.getenv("STT_MODEL", "small")
+STT_DEVICE = os.getenv("STT_DEVICE", "cpu")
+STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "int8")
+
+app = FastAPI(title="Voice Adaptive Kiosk Analyze API")
+STATIC_DIR = Path(__file__).resolve().parent / "static"
+ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts" / "age-demo-balanced-en-v1"
+BATCH_SUMMARY_PATH = ARTIFACTS_DIR / "age_demo_batch_en_100_summary.json"
+BATCH_CSV_PATH = ARTIFACTS_DIR / "age_demo_batch_en_100.csv"
+FAIRSPEECH_ARTIFACTS_DIR = Path(__file__).resolve().parent / "artifacts" / "fairspeech-eval-v1"
+FAIRSPEECH_SUMMARY_PATH = FAIRSPEECH_ARTIFACTS_DIR / "fairspeech_eval_summary.json"
+FAIRSPEECH_CSV_PATH = FAIRSPEECH_ARTIFACTS_DIR / "fairspeech_eval.csv"
+if STATIC_DIR.exists():
+    app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
+
+_age_model = None
+_stt = None
+_elevenlabs = None
 
 
-_load_dotenv()
-
-from contracts.schemas import (  # noqa: E402  (path 설정 후 import)
-    AgeInfo,
-    AnalyzeResult,
-    BehavioralInfo,
-)
-
-from inference import age as age_mod  # noqa: E402
-from inference import behavioral as beh_mod  # noqa: E402
-from inference import stt as stt_mod  # noqa: E402
-from inference import vad as vad_mod  # noqa: E402
-
-# ──────────────────────────────────────────────────────────────
-# 앱 설정
-# ──────────────────────────────────────────────────────────────
-
-API_KEY = os.getenv("API_KEY", "").strip()  # 비어 있으면 인증 비활성(로컬 개발)
+class DemoVoiceRequest(BaseModel):
+    age_group: str | None = None
+    gender: str | None = None
+    language: str | None = None
+    text: str | None = None
+    seed: int | None = None
 
 
-def _is_mock() -> bool:
-    return os.getenv("MOCK_MODE", "1") == "1"
+class AnalyzeDemoVoiceRequest(DemoVoiceRequest):
+    target_decade: str | None = None
 
 
-app = FastAPI(
-    title="Voice Adaptive Kiosk — Module A (AI Inference)",
-    description="음성 → 전사 + 나이대 + 행동신호(assist_level). MOCK_MODE 지원.",
-    version="0.1.0",
-)
-
-# CORS — 프론트(Module D)에서 직접 호출 허용. 데모는 전체 허용, 운영은 도메인 제한.
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
-    allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
-
-
-# ──────────────────────────────────────────────────────────────
-# 요청 모델
-# ──────────────────────────────────────────────────────────────
-
-
-class AnalyzeJSONRequest(BaseModel):
-    """JSON 본문 요청 — base64 인코딩된 오디오."""
-
-    audio_base64: Optional[str] = None
-
-
-# ──────────────────────────────────────────────────────────────
-# 유틸
-# ──────────────────────────────────────────────────────────────
-
-
-def _check_auth(request: Request) -> None:
-    """API_KEY 가 설정된 경우에만 Bearer 토큰 검증(원격 노출 대비)."""
+def require_auth(authorization: str | None) -> None:
     if not API_KEY:
         return
-    header = request.headers.get("authorization", "")
-    token = header[7:].strip() if header.lower().startswith("bearer ") else ""
-    if token != API_KEY:
-        raise HTTPException(status_code=401, detail="Invalid or missing API key")
+    expected = f"Bearer {API_KEY}"
+    if authorization != expected:
+        raise HTTPException(status_code=401, detail="Unauthorized")
 
 
-def _probe_duration_ms(audio_path: Optional[str]) -> int:
-    """wav 헤더로 길이(ms) 추정. 실패하면 mock 기본값."""
-    if not audio_path:
-        return 4600  # mock 시나리오 길이(~4.6s)
-    try:
-        with wave.open(audio_path, "rb") as wf:
-            frames = wf.getnframes()
-            rate = wf.getframerate() or 16000
-            return int(round(frames / rate * 1000))
-    except Exception:
-        # wav 가 아니거나 헤더 파손 → soundfile 로 재시도
+def get_age_model():
+    global _age_model
+    if _age_model is None:
+        _age_model = create_age_model(AGE_MODEL_PROVIDER, AGE_MODEL_PATH, AGE_DEVICE)
+    return _age_model
+
+
+def get_stt():
+    global _stt
+    if _stt is None:
         try:
-            import soundfile as sf
-
-            info = sf.info(audio_path)
-            return int(round(info.frames / info.samplerate * 1000))
+            _stt = create_stt(STT_MODEL, STT_DEVICE, STT_COMPUTE_TYPE)
         except Exception:
-            return 4600
+            _stt = NoopSTT()
+    return _stt
 
 
-def _persist_upload(data: bytes, suffix: str = ".wav") -> str:
-    """업로드 바이트를 임시 파일로 저장하고 경로 반환(호출자가 정리)."""
-    fd, path = tempfile.mkstemp(suffix=suffix)
-    with os.fdopen(fd, "wb") as f:
-        f.write(data)
-    return path
+def get_elevenlabs():
+    global _elevenlabs
+    if _elevenlabs is None:
+        _elevenlabs = ElevenLabsClient()
+    return _elevenlabs
 
 
-def _run_pipeline(audio_path: Optional[str]) -> AnalyzeResult:
-    """SPEC §2.4 처리 흐름 — STT/VAD/나이/행동신호 → AnalyzeResult."""
-    duration_ms = _probe_duration_ms(audio_path)
+def _first_present(row: dict[str, str], keys: list[str]) -> str:
+    for key in keys:
+        value = row.get(key)
+        if value:
+            return value
+    return ""
 
-    # 1) STT (전사 + 단어 타임스탬프)
-    stt_res = stt_mod.transcribe(audio_path)
 
-    # 2) VAD (발화/무음 구간)
-    segments = vad_mod.split(audio_path)
+def load_demo_batch_summary(summary_path: Path | None = None, csv_path: Path | None = None):
+    if summary_path is None and csv_path is None:
+        if FAIRSPEECH_SUMMARY_PATH.exists() and FAIRSPEECH_CSV_PATH.exists():
+            summary_path = FAIRSPEECH_SUMMARY_PATH
+            csv_path = FAIRSPEECH_CSV_PATH
+        else:
+            summary_path = BATCH_SUMMARY_PATH
+            csv_path = BATCH_CSV_PATH
+    elif summary_path is None or csv_path is None:
+        return {"available": False}
 
-    # 3) 나이 분류 (보조 신호)
-    age_res = age_mod.classify(audio_path)
+    if not summary_path.exists() or not csv_path.exists():
+        return {"available": False}
 
-    # 4) 행동신호 (주축) — 나이는 보조 가산으로만 전달
-    beh = beh_mod.score(
-        transcript=stt_res.transcript,
-        words=stt_res.words,
-        speech_segments=segments,
-        duration_ms=duration_ms,
-        age_group=age_res.group,
-        child_prob=age_res.child_prob,
+    summary = json.loads(summary_path.read_text(encoding="utf-8"))
+    with csv_path.open(encoding="utf-8", newline="") as fp:
+        rows = list(csv.DictReader(fp))
+
+    evaluation_label = summary.get("evaluation_label", "metadata_proxy")
+    note = summary.get(
+        "note",
+        "ElevenLabs voice metadata is a proxy label, not verified speaker age ground truth.",
     )
-
-    return AnalyzeResult(
-        transcript=stt_res.transcript,
-        language=stt_res.language or "ko",
-        age=AgeInfo(
-            group=age_res.group,
-            years_est=age_res.years_est,
-            confidence=age_res.confidence,
-            child_prob=age_res.child_prob,
-        ),
-        behavioral=BehavioralInfo(
-            speech_rate=beh.speech_rate,
-            silence_ratio=beh.silence_ratio,
-            filler_count=beh.filler_count,
-            assist_level=beh.assist_level,  # type: ignore[arg-type]
-        ),
-        duration_ms=duration_ms,
-    )
-
-
-# ──────────────────────────────────────────────────────────────
-# 엔드포인트
-# ──────────────────────────────────────────────────────────────
-
-
-@app.get("/health")
-def health() -> dict:
-    """헬스체크 — 기동 여부 + 현재 모드."""
     return {
-        "status": "ok",
-        "mock_mode": _is_mock(),
-        "auth_required": bool(API_KEY),
-        "version": app.version,
+        "available": True,
+        "evaluation_label": evaluation_label,
+        "note": note,
+        "total": summary.get("total", len(rows)),
+        "ok": summary.get("ok", sum(1 for row in rows if row.get("status") == "ok")),
+        "match": summary.get("match", 0),
+        "by_expected_decade": summary.get("by_expected_decade", summary.get("by_expected_age_bin", {})),
+        "by_gender": summary.get("by_gender", {}),
+        "target_distribution": dict(Counter(_first_present(row, ["target_age_bin", "target_age_group", "expected_decade"]) for row in rows)),
+        "gender_distribution": dict(Counter(_first_present(row, ["gender", "gender_prompt"]) for row in rows)),
+        "predicted_distribution": dict(Counter(_first_present(row, ["predicted_age_bin", "predicted_decade"]) for row in rows)),
     }
 
 
-@app.post("/analyze", response_model=AnalyzeResult)
-async def analyze(
-    request: Request,
-    file: Optional[UploadFile] = File(default=None),
-) -> AnalyzeResult:
-    """음성 → AnalyzeResult.
+@app.get("/health")
+def health():
+    return {
+        "ok": True,
+        "age_model": str(AGE_MODEL_PATH),
+        "age_model_provider": AGE_MODEL_PROVIDER,
+        "age_model_ready": (AGE_MODEL_PATH / "config.json").exists(),
+        "stt_model": STT_MODEL,
+        "elevenlabs_ready": bool(os.getenv("ELEVENLABS_API_KEY", "")),
+    }
 
-    입력(둘 중 하나):
-    - multipart/form-data: file=audio.wav (16kHz mono 권장)
-    - application/json:     {"audio_base64": "..."}
 
-    MOCK_MODE=1 이면 오디오 없이도 고정 시나리오로 유효 결과를 반환한다.
-    """
-    _check_auth(request)
-    started = time.time()
+@app.get("/demo")
+def demo_dashboard():
+    return FileResponse(STATIC_DIR / "demo.html")
 
-    audio_path: Optional[str] = None
-    tmp_to_cleanup: Optional[str] = None
+
+@app.get("/demo/batch-summary")
+def demo_batch_summary():
+    return load_demo_batch_summary()
+
+
+@app.get("/demo/voice-presets")
+def voice_presets():
+    mapping = load_age_voice_map()
+    def count_voices(value):
+        if isinstance(value, dict):
+            return {gender: len(voices) for gender, voices in value.items()}
+        return len(value)
+
+    return {
+        "age_groups": list(mapping.keys()),
+        "voice_counts": {age_group: count_voices(voices) for age_group, voices in mapping.items()},
+    }
+
+
+@app.post("/demo/random-age-voice")
+def random_age_voice(request: DemoVoiceRequest):
+    try:
+        choice = choose_age_voice(request.age_group, seed=request.seed, language=request.language, gender=request.gender)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    text = request.text or choice.default_text
+    return {
+        "age_group": choice.age_group,
+        "language": choice.language,
+        "gender": choice.gender,
+        "voice_id": choice.voice_id,
+        "text": text,
+    }
+
+
+@app.post("/demo/random-age-voice/audio")
+def random_age_voice_audio(request: DemoVoiceRequest):
+    try:
+        choice = choose_age_voice(request.age_group, seed=request.seed, language=request.language, gender=request.gender)
+        text = request.text or choice.default_text
+        audio = get_elevenlabs().synthesize(text, choice.voice_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ElevenLabsError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    return Response(
+        content=audio,
+        media_type="audio/mpeg",
+        headers={
+            "X-Age-Group": quote(choice.age_group, safe="+"),
+            "X-Language": choice.language,
+            "X-Gender": choice.gender or "",
+            "X-Voice-Id": choice.voice_id,
+            "X-Demo-Text": text.encode("utf-8").hex(),
+        },
+    )
+
+
+@app.post("/demo/generate-and-analyze")
+def generate_and_analyze(request: AnalyzeDemoVoiceRequest):
+    try:
+        choice = choose_age_voice(
+            request.age_group or request.target_decade,
+            seed=request.seed,
+            language=request.language,
+            gender=request.gender,
+        )
+        text = request.text or choice.default_text
+        audio = get_elevenlabs().synthesize(text, choice.voice_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except ElevenLabsError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    with tempfile.NamedTemporaryFile(suffix=".mp3", delete=False) as tmp:
+        tmp.write(audio)
+        tmp_path = Path(tmp.name)
+
+    started = time.perf_counter()
+    try:
+        waveform, _ = librosa.load(tmp_path, sr=16000, mono=True)
+        duration_sec = len(waveform) / 16000.0
+        age = get_age_model().predict(waveform, 16000)
+        behavioral = score_behavioral(text, duration_sec, duration_sec, age.group)
+        return {
+            "target_decade": request.target_decade,
+            "voice_bucket": choice.age_group,
+            "language": choice.language,
+            "gender": choice.gender,
+            "voice_id": choice.voice_id,
+            "text": text,
+            "audio_base64": base64.b64encode(audio).decode("ascii"),
+            "age": {
+                "group": age.group,
+                "years_est": age.years_est,
+                "confidence": age.confidence,
+                "child_prob": age.child_prob,
+            },
+            "behavioral": {
+                "speech_rate": behavioral.speech_rate,
+                "silence_ratio": behavioral.silence_ratio,
+                "filler_count": behavioral.filler_count,
+                "assist_level": behavioral.assist_level,
+            },
+            "duration_ms": int((time.perf_counter() - started) * 1000),
+        }
+    finally:
+        tmp_path.unlink(missing_ok=True)
+
+
+@app.post("/analyze")
+async def analyze(file: UploadFile = File(...), authorization: str | None = Header(default=None)):
+    require_auth(authorization)
+    started = time.perf_counter()
+
+    suffix = Path(file.filename or "audio.wav").suffix or ".wav"
+    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+        tmp.write(await file.read())
+        tmp_path = Path(tmp.name)
 
     try:
-        # 1) multipart 파일
-        if file is not None:
-            data = await file.read()
-            if data:
-                suffix = Path(file.filename or "audio.wav").suffix or ".wav"
-                audio_path = _persist_upload(data, suffix=suffix)
-                tmp_to_cleanup = audio_path
-
-        # 2) JSON base64 (파일이 없을 때만 시도)
-        if audio_path is None:
-            ctype = request.headers.get("content-type", "")
-            if "application/json" in ctype:
-                try:
-                    body = await request.json()
-                except Exception:
-                    body = {}
-                b64 = (body or {}).get("audio_base64")
-                if b64:
-                    try:
-                        raw = base64.b64decode(b64)
-                    except Exception:
-                        raise HTTPException(
-                            status_code=400, detail="audio_base64 디코딩 실패"
-                        )
-                    audio_path = _persist_upload(raw, suffix=".wav")
-                    tmp_to_cleanup = audio_path
-
-        # 3) 비-mock 모드인데 오디오가 전혀 없으면 에러
-        if audio_path is None and not _is_mock():
-            raise HTTPException(
-                status_code=400,
-                detail="오디오 입력이 필요합니다 (multipart file 또는 audio_base64).",
-            )
-
-        result = _run_pipeline(audio_path)
-
-        # 실제 처리 길이가 더 정확하면 mock 길이 대체(파일이 있었을 때만)
-        # duration_ms 는 _run_pipeline 에서 이미 산출되므로 그대로 반환.
-        return result
+        audio, sr = librosa.load(tmp_path, sr=16000, mono=True)
+        duration_sec = len(audio) / 16000.0
+        stt = get_stt().transcribe(str(tmp_path))
+        age = get_age_model().predict(audio, 16000)
+        behavioral = score_behavioral(stt.text, duration_sec, stt.speech_sec, age.group)
+        return {
+            "transcript": stt.text,
+            "language": stt.language,
+            "age": {
+                "group": age.group,
+                "years_est": age.years_est,
+                "confidence": age.confidence,
+                "child_prob": age.child_prob,
+            },
+            "behavioral": {
+                "speech_rate": behavioral.speech_rate,
+                "silence_ratio": behavioral.silence_ratio,
+                "filler_count": behavioral.filler_count,
+                "assist_level": behavioral.assist_level,
+            },
+            "duration_ms": int((time.perf_counter() - started) * 1000),
+        }
     finally:
-        if tmp_to_cleanup and os.path.exists(tmp_to_cleanup):
-            try:
-                os.remove(tmp_to_cleanup)
-            except OSError:
-                pass
-        _ = time.time() - started  # latency 측정 훅(필요시 로깅)
-
-
-# 로컬 직접 실행 지원: python app.py
-if __name__ == "__main__":
-    import uvicorn
-
-    uvicorn.run(
-        "app:app",
-        host=os.getenv("HOST", "0.0.0.0"),
-        port=int(os.getenv("PORT", "8000")),
-        reload=bool(os.getenv("RELOAD", "")),
-    )
+        tmp_path.unlink(missing_ok=True)
