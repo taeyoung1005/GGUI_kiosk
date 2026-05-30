@@ -117,3 +117,38 @@
 - 이미지 구성: 중앙 런타임 흐름(발화→캡처→Module A 분석→Module C GGUI→Module D 렌더/TTS→mock 결제), 좌측 오프라인 학습 파이프라인, 우측 배포 경계.
 - 저장 경로: `voice-adaptive-kiosk/assets/voice-adaptive-kiosk-pipeline.png`.
 - 생성 이미지 검증: PNG 1672×941, 런타임/오프라인 학습/배포 경계가 분리되어 표시됨.
+
+## 2026-05-30 — ElevenLabs 영어 100개 연령대 배치 결과
+
+- 데모용 영어 배치 100개 완료: 입력 타깃은 0대~90대 각 10개, 성별 프롬프트는 male/female 각 50개.
+- 저장 위치: `module-a/artifacts/age-demo-batch-en-v2/age_demo_batch_en_100.csv`, summary=`module-a/artifacts/age-demo-batch-en-v2/age_demo_batch_en_100_summary.json`.
+- 실행 상태: 100/100 ok. 기존 중단 실행에서 생성된 MP3 66개를 재사용하고, 나머지 34개만 새로 생성하도록 `age_demo_batch.py`를 보강함.
+- 예측 분포는 균등하지 않음: predicted_decade 40대=50, 50대=34, 30대=8, 20대=4, 60대=4. 정확히 target decade와 일치한 건 7/100.
+- 해석: ElevenLabs 기본 voice ID는 실제 연령 통제력이 약하고, `tiantiaf/wavlm-large-age-sex`는 합성 음성에서 40~50대 쪽으로 강하게 몰림. 발표에서는 "target age voice generation"과 "model prediction"을 분리해서 보여주는 것이 안전함.
+
+## 2026-05-30 — Module B 메뉴 데이터 명세 검수
+
+- 범위는 `voice-adaptive-kiosk/module-b/data/menu.seed.json`과 `module-b/public/img/menu/*.svg`로 제한. `contracts/types.ts`와 `module-b/server.js`는 변경 금지로 유지.
+- `MENU_DATA_SPEC.md`와 `contracts/types.ts` 기준으로 현재 seed를 검수. 항목 수 20개, latte 후보 7개, SVG 20개는 충족.
+- 발견한 보완점: 음료 옵션 요구(`Temperature` Hot/Iced)에 비해 `espresso-002`, `peach-iced-tea-013`, `lemon-ade-014`, `grapefruit-ade-015`, `strawberry-smoothie-016`에 `Temperature`가 없었음.
+- 조치: 위 5개 항목에 `Temperature` 옵션(Hot/Iced, price_delta 0)을 추가. SVG 파일명/경로는 기존 `image_url`과 모두 정합.
+
+## 2026-05-30 — Module B 메뉴 SVG를 imagegen 기반 미디어로 교체
+
+- 사용자 피드백: 이미지/미디어 산출은 단순 SVG placeholder 직접 작성이 아니라 `imagegen` 스킬을 사용해야 했음.
+- `imagegen` built-in 모드로 20개 카페 메뉴 항목의 5x4 contact sheet bitmap을 생성. 원본은 Codex generated_images에 보존하고, 프로젝트 확인용 사본을 `voice-adaptive-kiosk/module-b/public/img/menu/_imagegen-contact-sheet.png`에 저장.
+- 기존 20개 `module-b/public/img/menu/<id>.svg`를 모두 self-contained SVG로 재작성. 각 SVG는 contact sheet에서 해당 순서의 crop을 `data:image/png;base64,...`로 내장하고, 하단에 큰 항목명·카테고리·가격 텍스트를 deterministic/high-contrast로 오버레이.
+- 계약은 유지: `menu.seed.json`의 `image_url`은 계속 `/img/menu/<id>.svg`, SVG 파일 수 20개, 외부 이미지 URL 0개.
+
+## 2026-05-30 — Module B 메뉴 이미지 최종 방향: 1:1·상품만
+
+- 사용자 피드백 반영: 메뉴 이미지는 1:1 비율이 더 적합하고, 가격/라벨은 UI에서 별도 구현하므로 이미지 내부에는 음료·디저트 상품만 보여야 함.
+- `menu.seed.json`을 20개 유지하되 구성 조정: latte 후보 6개 유지, Dessert 8개로 확대(New York Cheesecake, Basque Cheesecake, Chocolate Brownie, Blueberry Muffin, Lemon Pound Cake, Butter Croffle, Tiramisu Cup, Macaron Set).
+- `imagegen` built-in 모드로 새 5x4 square contact sheet를 생성하고, 20개 `<id>.svg`를 모두 640x640 self-contained SVG로 재작성. SVG 안에는 embedded bitmap `<image>`만 있고 visible `<text>`/KRW/가격/라벨은 없음.
+- old menu id SVG는 삭제하고 현재 `menu.seed.json`의 20개 `image_url`에 대응하는 SVG만 남김. `_imagegen-contact-sheet.png`는 프로젝트 확인용 source sheet 사본.
+
+## 2026-05-30 — Module A 경로 이동 변경 커밋 정리
+
+- 요청 범위: top-level `module-a/`와 `contracts/analyze.schema.json`을 제거하고 `voice-adaptive-kiosk/module-a/`, `voice-adaptive-kiosk/contracts/` 기준으로 변경된 git 상태를 커밋.
+- `voice-adaptive-kiosk/module-a/vendor/`는 외부 Vox-Profile clone이므로 새 경로 `.gitignore`에 제외 규칙을 추가해 커밋 대상에서 제외.
+- 기존 누적 변경에는 Module B 메뉴 이미지/데이터, Module C/D UI·계약 정합 변경도 포함되어 있어, 최종 커밋 전 `git status`와 staged diff 기준으로 포함 범위를 확인.
