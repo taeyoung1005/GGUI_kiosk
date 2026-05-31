@@ -765,3 +765,11 @@ curl -s -X POST http://localhost:8000/analyze   # mock에선 오디오 없이도
 - [x] 라이브 GGUI 생성(ggui path, codeReady, 프리워밍 즉시) / [x] 한국어 ground-intent·주문 total 정합
 - [x] README BYOK 설치·실행 가능 / [x] .env git 미추적 / [x] Giosk 통일
 - 검증: module-a 8 tests, module-c 25 tests, module-d typecheck/build 전부 PASS.
+
+### GGUI 서버 = npx published 버전 핀 (사용자 결정, 커밋 6241bb8)
+- 사용자: 로컬 ggui 레포 말고 **npx published 사용**(한 번 로컬로 바꿨다 되돌림). 단 `npx @ggui-ai/cli`(버전 미지정)는 dist-tag **latest=0.1.0-rc.1**을 받는데, 그 버전은 ggui_push가 codeReady=false(bootstrap/ws 방식)라 **module-c와 비호환(0.3s fast-fail)**. codeReady 호환은 **0.2.0-alpha.4** → run.sh에 `@ggui-ai/cli@${GGUI_CLI_VERSION:-0.2.0-alpha.4}` 핀 + `--public-base-url/--no-open`. (로컬 레포 v0.2.0도 호환되지만 사용자가 npx 원함.)
+
+### 동적·정적·스크린샷 테스트 (사용자 지시, 커밋 045a7a3)
+- 정적: app.py py_compile, module-a unittest 8/8, npm run verify(module-c 25 + module-d typecheck/build) 전부 PASS. run.sh bash -n OK.
+- 동적(라이브 curl): health 4포트 200, /realtime/session 200(ek_…), /generate-ui ggui codeReady, /ground-intent 한국어 6종 정확(따뜻한 라떼→select_item, 포장→Take Out, 카카오페이→Kakao Pay, 네→yes 등), /orders total 정합(4500=4500).
+- 스크린샷 e2e(Playwright, scripts/screenshot-flow.mjs · npm run screenshot): RTCPeerConnection 비활성→데모 발화 경로로 마이크 없이 실제 백엔드+GGUI 구동. window.__giosk(App.tsx dev 훅, 프로덕션 제거)로 respeak() 진행. **8장 캡처**: 01-idle(일반 키오스크) + 02~07 적응단계 **전부 GGUI 라이브 렌더**(recommend/options/fulfillment/loyalty/payment/confirm) + 08-done(결제완료 ord-1003, 합계 ₩5,500=바닐라라떼5000+사이즈크게500). `.run-logs/screenshots/*.png`(gitignore). GGUI iframe은 고정높이라 하단 일부 클리핑(콘텐츠 정상).
