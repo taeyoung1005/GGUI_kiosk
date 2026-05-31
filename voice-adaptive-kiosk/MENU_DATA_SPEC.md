@@ -58,7 +58,7 @@ interface Menu {
 ## 4. 콘텐츠 요구사항
 - **언어: 영어**(데모가 영어). name/category/desc 모두 영문. (한국어 금지)
 - **카페 컨셉**, `restaurant` = 영문 카페명.
-- **항목 수: 약 20개.** 카테고리 다양화: 예) `Coffee`, `Latte`, `Tea`, `Dessert`, `Ade & Smoothie`.
+- **항목 수: 약 48개.** 카테고리: `Coffee`, `Latte`, `Tea`, `Ade`, `Beverage`, `Dessert`.
 - ★★ **Latte 변형 ≥ 5종** — *모호 발화→추천 카드* 데모의 핵심. 예: Caffe Latte, Vanilla Latte, Caramel Latte, Hazelnut Latte, Matcha Latte, Mocha Latte, Sweet Potato Latte 등. (사용자가 "a latte" 라고만 말하면 후보가 여러 개 떠야 함.)
 - **옵션**: 음료류는 최소 `Temperature`(Hot/Iced). 사이즈가 의미 있으면 `Size`(Regular/Large, +500). 디저트 등 옵션 불필요하면 `"options": []`.
 - **가격: 원 단위 정수**(예 3500~6500). `price_delta` 도 정수.
@@ -73,7 +73,7 @@ interface Menu {
 ## 6. 검증 기준 (생성 후 반드시 확인)
 - `python3 -c "import json,sys; d=json.load(open('module-b/data/menu.seed.json')); assert d['items']"` — JSON 유효.
 - 모든 item 이 §3 `MenuItem` 형태(필드명·타입) 준수. id 전부 고유.
-- `items` 길이 ≈ 20. **`name`/`desc`/`category` 에 'latte'(대소문자 무시) 포함 항목 ≥ 5.**
+- `items` 길이 ≈ 48. **`name`/`desc`/`category` 에 'latte'(대소문자 무시) 포함 항목 ≥ 5 (현재 10개).**
 - 모든 `image_url` 에 대응하는 `module-b/public/img/menu/<id>.svg` 파일 존재.
 - `node --check module-b/server.js` 통과, (서버 가능 시) `GET /menu`·`GET /menu/search?q=latte`(후보 다수) 정상.
 
@@ -87,7 +87,7 @@ interface Menu {
 
 ## 8. Codex 작업 지시 (paste-ready)
 > module-b 의 메뉴 데이터를 위 명세대로 생성하라.
-> 1) `module-b/data/menu.seed.json` — 영어 카페, 약 20개 항목, **latte 변형 ≥5종**, 카테고리 다양, 각 항목 `contracts/types.ts` 의 `MenuItem` 형태(id·name·category·price[원 정수]·image_url=`/img/menu/<id>.svg`·desc[영문]·options) 준수. 음료는 Temperature(Hot/Iced) 옵션, 사이즈 있으면 Size(Regular/Large +500).
+> 1) `module-b/data/menu.seed.json` — 영어 카페, 약 48개 항목, **latte 변형 ≥5종**, 카테고리 다양, 각 항목 `contracts/types.ts` 의 `MenuItem` 형태(id·name·category·price[원 정수]·image_url=`/img/menu/<id>.svg`·desc[영문]·options) 준수. 음료는 Temperature(Hot/Iced) 옵션, 사이즈 있으면 Size(Regular/Large +500).
 > 2) `module-b/public/img/menu/<id>.svg` — 항목당 1장, 항목명 텍스트가 들어간 단순 SVG placeholder(외부 호출 금지, 대비 높게).
 > 3) 검증: JSON 유효 + 전 항목 계약 준수 + id 고유 + image 파일 존재 + 'latte' 검색 ≥5 + `node --check module-b/server.js`.
 > 4) 금지: contracts/types.ts·server.js 로직 변경.

@@ -31,7 +31,7 @@
 | 세션 | 명세 / 범위 | 소유 | 한 줄 설명 |
 |------|-------------|------|-----------|
 | **공유 계약** | **[CONTRACTS.md](./CONTRACTS.md)** (병합 linchpin) | **공동(변경 금지)** | 4모듈이 합의하는 단일 계약서. 모든 JSON 타입 + 예시 + 생산/소비 매핑. 정본 = `contracts/types.ts`. **여기를 바꾸면 4모듈 전부 영향** → 4모듈 합의 없이 단독 수정 불가. |
-| **module-a** | **[MODULE_A.md](./MODULE_A.md)** — AI 추론 + ElevenLabs (`:8000`) | **Codex** | 음성(wav 16kHz) → `AnalyzeResult`(전사 + 나이대 + **행동신호 `assist_level`**). **+ ElevenLabs 실시간 보이스 생성/검증(`/demo/*`) 흡수** — 구 VOICEGEN 은 이 세션에 통합됨(별도 VOICEGEN 세션 없음). `MOCK_MODE=1` 로 ML 의존성 없이 기동. |
+| **module-a** | **[MODULE_A.md](./MODULE_A.md)** — AI 추론 + ElevenLabs (`:8000`) | **Codex** | 음성(wav 16kHz) → `AnalyzeResult`(전사 + 나이대 + **행동신호 `assist_level`**). 데모용 ElevenLabs API는 유지하되, 학습/검증 artifact 대시보드와 standalone voicegen은 제거됨. |
 | **module-b** | **[MODULE_B.md](./MODULE_B.md)** — 메뉴/주문 서버 (`:8001`) | **Codex** | `GET /menu`·`/menu/search`·`POST /orders`(mock 결제 항상 `paid`). 메뉴 **데이터 내용**은 별도(→ MENU_DATA_SPEC). 이 세션은 server.js 서빙 로직만. |
 | **module-c** | **[MODULE_C.md](./MODULE_C.md)** — GGUI 적응 UI 생성 (`:8002`) | **Claude** | `POST /generate-ui` → 노인친화 적응 UI. GGUI(OpenAI BYOK, `:6781`) 경로 + 키 없는 LOCAL 폴백. **★ 현재 GGUI 실연결 미완 — 결선 핵심 경로.** (아래 ★ 참고) |
 | **웹UI (module-d)** | **[MODULE_D.md](./MODULE_D.md)** — 웹 키오스크 프론트 (`:5173`) | **Codex (open-design MCP)** | 마이크→A→B→C 오케스트레이션 + 멀티턴, Standard/Adaptive 두 UI. **데이터 바인딩/삽입 포함**(메뉴 내용은 MENU_DATA_SPEC 소관, 여기선 삽입만). `VITE_USE_MOCK=true` 로 백엔드 없이 완주. |
@@ -56,18 +56,12 @@
 
 > 정리: **SPEC.md / PLAN.md = 개요**, **specs/* = 세션-레디**(단독 기동·테스트 합격선 포함).
 
-### 잔존 파일 안내
-
-- `specs/VOICEGEN.md` 파일이 물리적으로 남아 있으나 **현 세션 구조에서는 폐지**됐다. ElevenLabs 보이스 생성/검증은 **module-a 세션에 흡수**(`MODULE_A.md` §1·§2 = 구 VOICEGEN). 신규 작업은 VOICEGEN.md 가 아니라 **MODULE_A.md** 를 본다.
-
----
-
 ## 소유표 (누가 어떤 세션을 개발하나)
 
 | 영역 | 소유 세션 | 비고 |
 |------|-----------|------|
 | Module A (wavlm AI 추론) | **Codex** | `MOCK_MODE` 폴백 완비. 실모델은 vox-profile WavLM age-sex. |
-| ElevenLabs 보이스 생성/검증 (`/demo/*`) | **Codex** | module-a 에 흡수(구 VOICEGEN). 별도 세션 아님. |
+| ElevenLabs 보이스 생성 (`/demo/*`) | **Codex** | module-a API 내부 기능. standalone voicegen/검증 artifact는 제거됨. |
 | Module B (메뉴/주문 서빙 로직) | **Codex** | server.js 만. |
 | 메뉴 데이터 (`menu.seed.json` + SVG) | **Codex** | MENU_DATA_SPEC.md 범위. |
 | 웹UI / Module D (웹 프론트) + 데이터 삽입 | **Codex (open-design MCP)** | 영어 데모 전환·메뉴 바인딩 담당. 통합 시 Claude(C·통합)와 맞물림. |

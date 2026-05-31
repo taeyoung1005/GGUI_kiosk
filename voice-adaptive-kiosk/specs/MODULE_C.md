@@ -11,7 +11,7 @@
 
 `POST /generate-ui` 한 개를 책임진다: `GenerateUIRequest`(전사 + 나이대 + **행동신호 assist_level** + 메뉴)를 받아 **노인친화 적응 UI** 를 생성하고 `GenerateUIResponse`(`render_id`, `embed_url`, `contract`)를 돌려준다.
 
-규율 = **구조 고정, 내용만 적응**: 큰 카드 2~3장 + 예/아니요 + 큰 글씨. `assist_level` 이 높을수록 글자·여백·음성안내가 강해진다(주축 신호는 행동신호 `assist_level`, 나이 `age_group=50+` 는 보조로 한 단계 가중).
+규율 = **구조 고정, 내용만 적응**: 큰 카드 2~3장 + 예/아니요 + 큰 글씨. `assist_level` 이 높을수록 글자·여백·음성안내가 강해진다(주축 신호는 행동신호 `assist_level`, 나이 `age_group` 이 senior 버킷(`senior_adult`/`fifties`/`sixties`/`seventies_plus`)이면 보조로 한 단계 가중).
 
 두 경로:
 - **(1) GGUI 경로(primary)** — `GGUI_MODE=ggui`. GGUI MCP 서버(`:6781`)를 호출해 OpenAI BYOK LLM 이 UI 를 생성. 임베드는 GGUI 뷰어가 서빙.
@@ -34,11 +34,16 @@
 
 ```ts
 interface GenerateUIRequest {
-  transcript: string;                 // STT 전사. 예: "라떼 하나 주세요"
-  age_group: "50+" | "under50";       // 보조 신호
+  transcript: string;                 // STT 전사. 예: "I'd like a latte"
+  age_group: AgeGroup;                // 보조 신호. Vox-Profile broad taxonomy 12값:
+                                      //   young_adult|adult|senior_adult|child|teens|twenties|
+                                      //   thirties|forties|fifties|sixties|seventies_plus|unknown
   assist_level: 0 | 1 | 2 | 3;        // 주축 신호. 0=일반 … 3=최대 보조
   menu_context: MenuItem[];           // 후보/전체 메뉴 (B 의 MenuItem[])
-  step: "recommend" | "options" | "confirm";  // 멀티턴 단계
+  order_state?: AdaptiveOrderState;   // 현재 주문 상태(선택). 매 턴 같은 context 로 화면 재생성용
+  possible_actions?: string[];        // 현재 단계에서 가능한 action 이름 목록(선택)
+  step: AdaptiveStep;                 // 멀티턴 단계. 6단계:
+                                      //   recommend|options|fulfillment|loyalty|payment|confirm
 }
 ```
 
@@ -66,8 +71,8 @@ interface GenerateUIResponse {
 요청 예시 (recommend, 어르신 L2):
 ```json
 {
-  "transcript": "라떼 하나 주세요",
-  "age_group": "50+",
+  "transcript": "I'd like a latte",
+  "age_group": "senior_adult",
   "assist_level": 2,
   "menu_context": [
     {"id":"latte-001","name":"카페라떼","category":"커피","price":4500,
@@ -102,13 +107,20 @@ interface GenerateUIResponse {
 }
 ```
 
-### step 별 actionSpec (D 가 받는 사용자 액션 = 멀티턴 전이)
+### step 별 actionSpec (D 가 받는 사용자 액션 = 멀티턴 전이 — 6단계 전체)
+구조 고정 6스텝 플로우: `recommend → options → fulfillment → loyalty → payment → confirm`. `back` 으로 한 단계 뒤로.
 | step | actionSpec 키 | payload | nextStep |
 |------|---------------|---------|----------|
 | `recommend` | `selectMenu` | `{item_id}` | `options` |
 | `recommend` | `repeat` | — | (음성 다시듣기) |
 | `options` | `selectOption` | `{type,label}` | `confirm` |
 | `options` | `back` | — | `recommend` |
+| `fulfillment` | `setFulfillment` | `{value: "Dine In"\|"Take Out"}` | `loyalty` |
+| `fulfillment` | `back` | — | `options` |
+| `loyalty` | `setLoyalty` | `{value: "scan"\|"phone"\|"none"}` | `payment` |
+| `loyalty` | `back` | — | `fulfillment` |
+| `payment` | `setPayment` | `{value: 결제수단}` | `confirm` |
+| `payment` | `back` | — | `loyalty` |
 | `confirm` | `confirmYes` | — | `order` (→ B `/orders`) |
 | `confirm` | `confirmNo` | — | `recommend` |
 
@@ -129,21 +141,23 @@ D 는 이 메시지를 받아 다음 `step` 으로 `/generate-ui` 를 재호출(
 
 ```
 module-c/
-├── server.js              # Express: /generate-ui, /r/:id, /health + 모드 스위치/폴백 + .env 로더
+├── server.js              # Express: /generate-ui, /r/:id, /health, /consume/:renderId + 모드 스위치/폴백 + .env 로더
 ├── src/
 │   ├── adapt.js           # 적응 규율(정본): assist_level/age → 디자인 토큰·후보 선정·문구
-│   ├── contract.js        # GGUI DataContract(propsSpec/actionSpec) 빌더(step별)
+│   ├── contract.js        # GGUI DataContract(propsSpec/actionSpec) 빌더(step별, 6단계)
 │   ├── local-render.js    # LOCAL_FALLBACK: 적응형 HTML 직접 생성(+TTS/postMessage)
-│   └── ggui-client.js     # GGUI 경로: MCP Streamable HTTP 로 GGUI 호출  ← ★현재 버그(§9)
+│   └── ggui-client.js     # GGUI 경로(primary): MCP Streamable HTTP 로 GGUI 호출 (§9 버그 3건 수정 완료)
+├── tests/                 # node:test 단위 테스트(contract / ggui-client / local-render)
 ├── _inspect.mjs           # 진단용: 실행 중 GGUI MCP 서버의 tool 목록·스키마 덤프
 ├── package.json           # type:module, start=node server.js, dev=node --watch server.js
 ├── .env.example           # 기본 local 모드(키 불필요)
 ├── .env.local             # 실제 값(git 무시). ★실제 OPENAI_API_KEY 가 들어있음 — 절대 커밋·노출 금지
+├── MEMORY.md              # 진행 기록
 └── README.md
 ```
 
 ### 적응 규율 토큰 (`src/adapt.js`, effective level 기준)
-`age_group="50+"` 이고 아직 최대치가 아니면 effective 를 **+1** 가중(토큰만, 응답의 `assist_level` 원값은 유지).
+`age_group` 이 senior 버킷(`SENIOR_GROUPS = {senior_adult, fifties, sixties, seventies_plus}`)이고 아직 최대치가 아니면 effective 를 **+1** 가중(토큰만, 응답의 `assist_level` 원값은 유지).
 
 | effective | 글자 base/title(px) | 카드 수 | 설명표시 | 예/아니요 | 음성안내(TTS) |
 |---|---|---|---|---|---|
@@ -152,7 +166,7 @@ module-c/
 | 2 보조 | 25 / 36 | 3 | X(이름·가격만) | 큼 | on |
 | 3 최대보조 | 30 / 44 | 2 | X | 큼 | 강함 |
 
-LOCAL HTML 은 `speechSynthesis`(ko-KR) 로 진입 시 1회 음성안내 + "다시 듣기" 버튼.
+LOCAL HTML 은 `speechSynthesis`(en-US) 로 진입 시 1회 음성안내 + "다시 듣기" 버튼.
 
 ---
 
@@ -165,7 +179,7 @@ C 는 다른 모듈을 **런타임 의존하지 않는다.** 입력은 전부 HT
 - **D(프론트)**: 호출 안 함. `curl`/브라우저로 `/generate-ui` 후 `embed_url` 을 직접 열어 검증.
 - **GGUI(:6781)**: **격리 시 띄울 필요 없음.** `GGUI_MODE=local`(기본)이면 GGUI 미접속 + 키 없이 적응형 HTML 을 직접 생성한다. `GGUI_MODE=ggui` 라도 GGUI/키 미가동이면 자동 LOCAL 폴백(`X-GGUI-Path: local-fallback`).
 
-→ **키·외부의존 0 으로 전 기능(3단계 · 적응 대조)이 돈다.** 고정 입력 JSON 만 있으면 단독 빌드·테스트 완결.
+→ **키·외부의존 0 으로 전 기능(6단계 · 적응 대조)이 돈다.** 고정 입력 JSON 만 있으면 단독 빌드·테스트 완결.
 
 격리용 고정 `menu_context` (복붙용):
 ```json
@@ -230,23 +244,24 @@ curl -s http://localhost:8002/health
 
 # 2) recommend — 200 + render_id + embed_url(자기서빙 /r/) + contract.actionSpec.selectMenu
 curl -s -X POST http://localhost:8002/generate-ui -H 'Content-Type: application/json' -d '{
-  "transcript":"라떼 주세요","age_group":"50+","assist_level":2,
-  "menu_context":[{"id":"latte-001","name":"카페라떼","category":"커피","price":4500,"image_url":"/img/latte.png","desc":"부드러운 라떼","options":[{"type":"온도","choices":[{"label":"HOT","price_delta":0},{"label":"ICE","price_delta":0}]}]}],
+  "transcript":"I'\''d like a latte","age_group":"senior_adult","assist_level":2,
+  "menu_context":[{"id":"latte-001","name":"Caffe Latte","category":"Latte","price":4500,"image_url":"/img/menu/caffe-latte.svg","desc":"Smooth latte","options":[{"type":"Temperature","choices":[{"label":"HOT","price_delta":0},{"label":"ICE","price_delta":0}]}]}],
   "step":"recommend"}'
 
 # 3) embed_url 열기 → 적응 HTML(큰 카드/큰 글씨/음성안내바) 확인
-EMBED=$(curl -s -X POST http://localhost:8002/generate-ui -H 'Content-Type: application/json' -d '{"transcript":"","age_group":"50+","assist_level":3,"menu_context":[{"id":"a","name":"카페라떼","category":"커피","price":4500,"image_url":"","desc":"","options":[]},{"id":"b","name":"아메리카노","category":"커피","price":4000,"image_url":"","desc":"","options":[]}],"step":"recommend"}' | sed -n 's/.*"embed_url":"\([^"]*\)".*/\1/p')
+EMBED=$(curl -s -X POST http://localhost:8002/generate-ui -H 'Content-Type: application/json' -d '{"transcript":"","age_group":"senior_adult","assist_level":3,"menu_context":[{"id":"a","name":"Caffe Latte","category":"Latte","price":4500,"image_url":"","desc":"","options":[]},{"id":"b","name":"Americano","category":"Coffee","price":4000,"image_url":"","desc":"","options":[]}],"step":"recommend"}' | sed -n 's/.*"embed_url":"\([^"]*\)".*/\1/p')
 curl -s "$EMBED" | grep -c 'class="card"'   # ≥1, L3 면 카드 2장
 ```
 
 통과 기준(체크리스트):
 - [ ] `/health` 200, `mode` 표시.
-- [ ] `recommend`/`options`/`confirm` 3단계 모두 200 + `render_id`/`embed_url`/`contract` 반환.
-- [ ] **적응 대조**: `under50`+`assist_level:0` → 글자 18px·카드 3장·음성안내바 없음 / `50+`+`assist_level:2`(effective 3) → 30px·카드 2장·음성안내바 있음. (HTML 의 `--base`, `.cards--N`, `.voicebar` 유무로 확인)
+- [ ] `recommend`/`options`/`fulfillment`/`loyalty`/`payment`/`confirm` 6단계 모두 200 + `render_id`/`embed_url`/`contract` 반환.
+- [ ] **적응 대조**: `twenties`(non-senior)+`assist_level:0` → 글자 18px·카드 3장·음성안내바 없음 / `senior_adult`+`assist_level:2`(effective 3) → 30px·카드 2장·음성안내바 있음. (HTML 의 `--base`, `.cards--N`, `.voicebar` 유무로 확인)
 - [ ] `menu_context:[]` 빈 입력에도 500 없이 응답.
-- [ ] `step` 별 actionSpec 키 일치: recommend→`selectMenu`/`repeat`, options→`selectOption`/`back`, confirm→`confirmYes`/`confirmNo`.
-- [ ] (GGUI 모드) GGUI 서버 미가동 시 자동 LOCAL 폴백 + 응답 헤더 `X-GGUI-Path: local-fallback`.
-- [ ] (GGUI 실연결, §9 수정 후) `X-GGUI-Path: ggui` 로 200, `embed_url` 이 `:6781/r/...` 뷰어 URL.
+- [ ] `step` 별 actionSpec 키 일치: recommend→`selectMenu`/`repeat`, options→`selectOption`/`back`, fulfillment→`setFulfillment`/`back`, loyalty→`setLoyalty`/`back`, payment→`setPayment`/`back`, confirm→`confirmYes`/`confirmNo`.
+- [ ] (GGUI 모드) GGUI 서버 미가동 또는 `codeReady=false` 시 자동 LOCAL 폴백 + 응답 헤더 `X-GGUI-Path: local-fallback`.
+- [ ] (GGUI 실연결) `X-GGUI-Path: ggui` 로 200, `embed_url` 이 `:6781/r/...` 뷰어 URL. (MEMORY 2026-05-31 에 live `path:ggui` 성공 기록.)
+- [ ] (멀티턴 액션 수신) `GET /consume/:renderId` 가 GGUI `ggui_consume` 를 프록시해 D 의 액션 폴링을 중계.
 
 진단 도구: `GGUI_URL=http://localhost:6781 node _inspect.mjs` → 실행 중 GGUI MCP 의 tool 목록·스키마 덤프(GGUI 응답 형태 1회 검증용).
 
@@ -263,44 +278,50 @@ curl -s "$EMBED" | grep -c 'class="card"'   # ≥1, L3 면 카드 2장
 
 ## 9. 현재 상태 (코드 읽은 사실 — ★중요)
 
-- **LOCAL 경로: 동작함.** `GGUI_MODE=local` 로 `node server.js` → `/health` OK, 3단계 200, `/r/:id` 자기서빙, 적응 대조(L0 18px·3카드 vs effective3 30px·2카드·음성안내바) 확인됨. 키·외부의존 0 으로 전 구간 동작.
-- **GGUI 경로: 미완 — 호출 순서/툴명 버그로 항상 LOCAL 폴백.** `src/ggui-client.js` 가 실제 GGUI MCP 서버(:6781, 가동 확인)의 tool 표면과 어긋난다. 라이브 MCP 덤프(`_inspect.mjs` + 직접 호출)로 확인한 3가지 버그:
-  1. **`ggui_new_session` 누락** → `ggui_handshake` 가 `sessionId`(required) 없이 호출돼 거부됨.
-  2. **존재하지 않는 `ggui_render` 호출** → 실제 렌더 툴은 **`ggui_push`**. (서버 tool 목록에 `ggui_render` 없음.)
-  3. **응답 키 오독** → `renderId/shortCode/resourceUri` 를 찾지만 실제 `ggui_push` 출력은 `{ stackItemId, url, action, nextStep }`. 임베드 URL 은 **`url`** 필드(서명·만료 쿼리 포함).
-  → 결과적으로 `GGUI_MODE=ggui` 라도 매번 예외 → **LOCAL 폴백**(`X-GGUI-Path: local-fallback`). 즉 GGUI 실연결은 **아직 한 번도 성공한 적 없음.**
-- 남은 것: §10 의 **올바른 GGUI 호출 순서로 `ggui-client.js` 수정** → `X-GGUI-Path: ggui` 200 + GGUI 뷰어 URL 임베드 확인.
+> 목표는 **GGUI 라이브 생성(primary)** 이고 LOCAL 적응 렌더러는 **폴백**이다. 아래 3가지 버그는 모두 수정 완료되어 코드에 반영돼 있다.
 
-### ★ 올바른 GGUI 호출 순서 (라이브 :6781 검증 완료 — 이대로 못박는다)
+- **LOCAL 경로(폴백): 동작함.** `GGUI_MODE=local` 로 `node server.js` → `/health` OK, 6단계 200, `/r/:id` 자기서빙, 적응 대조(L0 18px·3카드 vs effective3 30px·2카드·음성안내바) 확인됨. 키·외부의존 0 으로 전 구간 동작.
+- **GGUI 경로(primary): 라이브 성공 확인.** `src/ggui-client.js` 가 실제 GGUI MCP 서버(:6781)와 정합하도록 수정됐고, live probe(`probe-ggui-generation.mjs`)에서 `path:"ggui"`, `mode:"live-ggui"`(LOCAL 폴백 아님) 성공이 기록됨(MEMORY 2026-05-31). 이전 명세가 단정했던 3가지 버그는 다음과 같이 **모두 해결**됨:
+  1. **`ggui_new_session` 처리** → `createGguiSessionIfAvailable()` 로 시도하되, 최신 GGUI alpha 처럼 툴이 없으면 생략하고 있으면 `sessionId` 를 이후 호출에 thread. (옛 명세의 "sessionId 누락" 거부는 해소.)
+  2. **`ggui_render` 우선 / `ggui_push` 폴백** → `callGguiRenderTool()` 이 최신 alpha 의 정식 렌더 툴 **`ggui_render`** 를 먼저 호출하고, missing tool(구버전 rc)일 때만 legacy **`ggui_push`** 로 폴백. (옛 명세의 "`ggui_render` 는 존재하지 않고 `ggui_push` 가 유일" 은 정반대 — 현재 데모 기준은 alpha `0.2.0-alpha.4` 이며 `ggui_render` 가 정식.)
+  3. **응답 정규화** → `normalizeGguiPushResult()` 가 `url`/`stackItemId`/`resourceUri` 및 alpha 의 `_meta["ai.ggui/render"]`(`codeUrl`/`codeHash`/`runtimeUrl`)를 함께 정규화. `embed_url = url`(서명·만료 쿼리 포함), `render_id = stackItemId`.
+  → `GGUI_MODE=ggui` 에서 준비 신호가 충족되면 **`X-GGUI-Path: ggui` 200**.
+- **남은 블로커(폴백 사유 한정).** 구버전 **rc 경로**에서 `ggui_push` 가 `codeReady=false` 를 주면(사용자 렌더가 202 `Generating UI...` 에 머묾) 실패로 간주해 **LOCAL 폴백**(`X-GGUI-Path: local-fallback`). 즉 LOCAL 폴백은 "GGUI 미구현" 이 아니라 "rc `codeReady=false`" 한정 상황이다.
+- 남은 것: rc `codeReady=false` 경로의 안정화(또는 alpha 고정)와 멀티턴 `ggui_consume` 폴링(`GET /consume/:renderId`) 통합 검증.
 
-> 아래는 실행 중인 GGUI MCP 서버에 직접 `new_session→handshake→push` 를 돌려 **실제 응답으로 확인**한 계약이다.
+### ★ 실제 GGUI 호출 순서 (코드 + 라이브 :6781 검증 — 현재 `ggui-client.js` 구현)
+
+> 아래는 현재 `src/ggui-client.js` 가 구현한 흐름이며, live probe 로 `path:"ggui"` 성공을 확인했다.
 
 ```
-1) ggui_new_session({})
-     → { sessionId, nextStep:{ tool:"ggui_handshake" } }
-     ※ chat 당 1회, 가장 먼저. sessionId 를 이후 모든 호출에 thread.
+0) (옵션) ggui_new_session({})            ← createGguiSessionIfAvailable()
+     → { sessionId, ... }                  ※ 최신 GGUI alpha 는 이 툴이 없어 생략. 있으면 sessionId 를 thread.
 
-2) ggui_handshake({ sessionId, intent, blueprintDraft:{ contract:{propsSpec,actionSpec}, variance:{persona,seedPrompt}, generator? } })
+1) ggui_handshake({ sessionId?, intent, blueprintDraft:{ contract:{propsSpec,actionSpec}, variance:{persona,seedPrompt}, generator? } })
      → { handshakeId, action, suggestion }
-     ※ sessionId 는 REQUIRED(현재 코드 누락). intent + seedPrompt 에 노인친화 UI 규율을 싣는다.
+     ※ sessionId 는 존재할 때만 포함. intent + seedPrompt 에 노인친화 UI 규율을 싣는다.
 
-3) ggui_push({ handshakeId, decision:{ kind:"accept" }, props })   ← 'ggui_render' 아님!
-     → { stackItemId, url, action, nextStep:{ tool:"ggui_consume", args:{ stackItemId } } }
-     ※ embed_url = result.url  (예: http://127.0.0.1:6781/r/<code>?sig=...&exp=...)
-     ※ render_id = result.stackItemId
-     ※ 멀티턴 액션 수신은 ggui_consume({ stackItemId }) 로 이어진다(D 측).
+2) ggui_render({ handshakeId, decision:{ kind:"accept" }, props })   ← callGguiRenderTool() : ggui_render 우선
+     (구버전 rc 서버면 ggui_push 로 자동 폴백)
+     → alpha: { stackItemId, resourceUri, _meta["ai.ggui/render"]:{ codeUrl, codeHash, runtimeUrl }, ... }
+        rc:    { stackItemId, url, codeReady, ... }
+     ※ normalizeGguiPushResult(): embed_url = url, render_id = stackItemId.
+       준비 신호 = rc `codeReady===true` 또는 alpha `resourceUri + (codeUrl|codeHash|runtimeUrl)`.
+       둘 다 없으면 throw → LOCAL 폴백.
+
+3) (멀티턴 액션 수신) ggui_consume({ renderId, timeout })            ← consumeGguiEvents()
+     ※ D 는 C 의 `GET /consume/:renderId` 를 통해 이 이벤트를 폴링한다.
 ```
 
-수정 매핑(현재 → 올바름):
-| 현재 코드(`ggui-client.js`) | 올바름 |
-|---|---|
-| (없음) | **선행** `ggui_new_session({})` → `sessionId` |
-| `ggui_handshake({ intent, blueprintDraft })` | `ggui_handshake({ **sessionId**, intent, blueprintDraft })` |
-| `ggui_render({ handshakeId, decision, props })` | **`ggui_push`**`({ handshakeId, decision:{kind:"accept"}, props })` |
-| 응답에서 `renderId/shortCode/resourceUri` 추출 | 응답에서 **`url`**(=embed_url) / **`stackItemId`**(=render_id) 추출 |
-| `embed_url = {GGUI_URL}/r/<shortCode>` 재조립 | `embed_url = result.url` (서명·만료 URL 그대로 사용) |
+툴 우선순위 (코드 기준):
+| 단계 | 코드(`ggui-client.js`) | 동작 |
+|---|---|---|
+| 세션 | `createGguiSessionIfAvailable()` | `ggui_new_session` 있으면 `sessionId` 확보, 없으면(alpha) 생략 |
+| 핸드셰이크 | `ggui_handshake({ sessionId?, intent, blueprintDraft })` | `sessionId` 존재 시에만 포함 |
+| 렌더 | `callGguiRenderTool()` | **`ggui_render`(최신 alpha 정식) 우선**, missing tool 일 때만 **`ggui_push`(legacy rc) 폴백** |
+| 정규화 | `normalizeGguiPushResult()` | `url`(=embed_url) / `stackItemId`(=render_id) / `resourceUri` + alpha `_meta` 추출. 준비 신호 없으면 throw |
 
-`blueprintDraft.contract`/`variance.seedPrompt`/`generator`(`GGUI_MODEL` 의 `:`→`-`) 구성 로직은 현재 코드 그대로 재사용 가능. 출력 추출 헬퍼 `pickFromResult` 도 키만 `["url"]`, `["stackItemId"]` 로 바꿔 재사용.
+`blueprintDraft.contract`/`variance.seedPrompt`/`generator`(`GGUI_MODEL` 의 `:`→`-`) 구성 로직, 출력 추출 헬퍼 `pickFromResult` 모두 현재 코드 그대로 동작한다.
 
 ---
 
@@ -308,7 +329,7 @@ curl -s "$EMBED" | grep -c 'class="card"'   # ≥1, L3 면 카드 2장
 
 1. **계약 일치**: `/generate-ui` 가 `contracts/types.ts` 의 `GenerateUIRequest` 를 소비하고 `GenerateUIResponse`(`render_id`/`embed_url`/`contract`)를 생산한다. 확장 필드는 계약에 추가하지 않았다.
 2. **포트·URL**: C 는 `:8002` 에서 뜨고, D 의 `VITE_GGUI_URL=http://localhost:8002` 가 이를 가리킨다(GGUI 6781 이 아니라 **C 래퍼**를 가리킴).
-3. **LOCAL 보증**: 키/GGUI 없이도 D→C 전 구간(3단계 + 적응 대조 + iframe `postMessage` 액션)이 동작한다 → 데모 폴백 보장.
-4. **GGUI 실연결(§9 수정 후)**: `GGUI_MODE=ggui` + `OPENAI_API_KEY` + `:6781` 가동에서 `X-GGUI-Path: ggui` 로 200, `embed_url` 이 GGUI 뷰어 URL(`:6781/r/...?sig=...`), D 가 `@ggui-ai/react`+`ggui_consume`(또는 iframe)로 임베드·멀티턴 가능.
-5. **D 연동 액션 키 동형성**: LOCAL `postMessage` 의 `action` 키 = GGUI `actionSpec` 키(`selectMenu`/`selectOption`/`confirmYes`/`confirmNo`/`back`/`repeat`) → 두 경로에서 D 의 멀티턴 핸들러가 동일하게 동작.
+3. **LOCAL 폴백 보증**: 키/GGUI 없이도 D→C 전 구간(6단계 + 적응 대조 + iframe `postMessage` 액션)이 동작한다 → 데모 폴백 보장(메인은 GGUI 라이브).
+4. **GGUI 실연결(primary)**: `GGUI_MODE=ggui` + `OPENAI_API_KEY` + `:6781` 가동에서 `X-GGUI-Path: ggui` 로 200, `embed_url` 이 GGUI 뷰어 URL(`:6781/r/...?sig=...`), D 가 `@ggui-ai/react`+`ggui_consume`(또는 iframe)로 임베드·멀티턴 가능. (live `path:ggui` 성공은 MEMORY 2026-05-31 기록 — rc `codeReady=false` 경로만 LOCAL 폴백.)
+5. **D 연동 액션 키 동형성**: LOCAL `postMessage` 의 `action` 키 = GGUI `actionSpec` 키(`selectMenu`/`selectOption`/`setFulfillment`/`setLoyalty`/`setPayment`/`confirmYes`/`confirmNo`/`back`/`repeat`) → 두 경로에서 D 의 멀티턴 핸들러가 동일하게 동작.
 6. **회귀**: 병합 후 §7 체크리스트 전 항목 + GGUI 실연결 1회 성공(`X-GGUI-Path: ggui`)을 재확인.

@@ -46,6 +46,11 @@ function loadDotEnv() {
 loadDotEnv();
 
 const PORT = process.env.PORT || 8001;
+const OPTIONAL_UPGRADES = [
+  { type: "Set Upgrade", label: "Set dessert", priceDelta: 3000 },
+  { type: "Combo Upgrade", label: "Large size combo", priceDelta: 1500 },
+  { type: "Add-on", label: "Extra shot", priceDelta: 500 },
+];
 
 // ────────────────────────────────────────────────────────────
 // 데이터 로드 (JSON in-memory)
@@ -104,9 +109,20 @@ function computeTotal(lines) {
       const choice = (opt.choices || []).find((c) => c.label === pickedLabel);
       if (choice) unit += choice.price_delta || 0;
     }
+    for (const [type, label] of Object.entries(chosen)) {
+      if ((item.options || []).some((opt) => opt.type === type)) continue;
+      unit += optionalUpgradeDelta(type, label);
+    }
     total += unit * qty;
   }
   return { total, invalid };
+}
+
+function optionalUpgradeDelta(type, label) {
+  const upgrade = OPTIONAL_UPGRADES.find(
+    (item) => item.type === type && item.label === label,
+  );
+  return upgrade?.priceDelta || 0;
 }
 
 /** 한국어/영문 혼용 검색을 위한 정규화(소문자 + 공백 제거) */
@@ -118,7 +134,7 @@ function queryTokens(s) {
   return String(s || "")
     .toLowerCase()
     .split(/[^a-z0-9]+/i)
-    .filter((token) => token.length >= 3);
+    .filter((token) => token.length >= 3 && !["can", "get", "please", "want", "like"].includes(token));
 }
 
 // ────────────────────────────────────────────────────────────

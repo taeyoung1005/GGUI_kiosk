@@ -102,6 +102,19 @@
         "desc": "A short, bold shot with deep roasted aroma.",
         "options": [
           {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
             "type": "Shot",
             "choices": [
               {
@@ -332,7 +345,7 @@
         "category": "Latte",
         "price": 5200,
         "image_url": "/img/menu/caramel-latte-006.svg",
-        "desc": "Espresso and milk finished with rich caramel.",
+        "desc": "A rich latte topped with buttery caramel flavor.",
         "options": [
           {
             "type": "Temperature",
@@ -467,19 +480,1705 @@
         ]
       },
       {
-        "id": "new-york-cheesecake-017",
+        "id": "mocha-latte-008",
+        "name": "Mocha Latte",
+        "category": "Latte",
+        "price": 5500,
+        "image_url": "/img/menu/mocha-latte-008.svg",
+        "desc": "Chocolate, espresso, and milk in one cozy latte.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Milk",
+            "choices": [
+              {
+                "label": "Whole Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Low-Fat Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Oat Milk",
+                "price_delta": 600
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "earl-grey-tea-009",
+        "name": "Earl Grey Tea",
+        "category": "Tea",
+        "price": 4000,
+        "image_url": "/img/menu/earl-grey-tea-009.svg",
+        "desc": "Black tea with bright bergamot citrus notes.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "lemon-ade-010",
+        "name": "Lemon Ade",
+        "category": "Ade",
+        "price": 5000,
+        "image_url": "/img/menu/lemon-ade-010.svg",
+        "desc": "Sparkling lemonade with a crisp citrus bite.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "grapefruit-ade-011",
+        "name": "Grapefruit Ade",
+        "category": "Ade",
+        "price": 5500,
+        "image_url": "/img/menu/grapefruit-ade-011.svg",
+        "desc": "Refreshing sparkling ade with real grapefruit pulp.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "strawberry-smoothie-012",
+        "name": "Strawberry Smoothie",
+        "category": "Beverage",
+        "price": 5800,
+        "image_url": "/img/menu/strawberry-smoothie-012.svg",
+        "desc": "Blended strawberry and yogurt for a cool treat.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "new-york-cheesecake-013",
         "name": "New York Cheesecake",
         "category": "Dessert",
         "price": 6000,
-        "image_url": "/img/menu/new-york-cheesecake-017.svg",
+        "image_url": "/img/menu/new-york-cheesecake-013.svg",
         "desc": "Dense and creamy cheesecake with a buttery crust.",
         "options": []
+      },
+      {
+        "id": "basque-cheesecake-014",
+        "name": "Basque Cheesecake",
+        "category": "Dessert",
+        "price": 6500,
+        "image_url": "/img/menu/basque-cheesecake-014.svg",
+        "desc": "Burnt-top cheesecake with a soft custard center.",
+        "options": []
+      },
+      {
+        "id": "chocolate-brownie-015",
+        "name": "Chocolate Brownie",
+        "category": "Dessert",
+        "price": 4800,
+        "image_url": "/img/menu/chocolate-brownie-015.svg",
+        "desc": "Fudgy chocolate brownie with a crisp top.",
+        "options": []
+      },
+      {
+        "id": "blueberry-muffin-016",
+        "name": "Blueberry Muffin",
+        "category": "Dessert",
+        "price": 4200,
+        "image_url": "/img/menu/blueberry-muffin-016.svg",
+        "desc": "Soft muffin packed with sweet blueberries.",
+        "options": []
+      },
+      {
+        "id": "lemon-pound-cake-017",
+        "name": "Lemon Pound Cake",
+        "category": "Dessert",
+        "price": 4500,
+        "image_url": "/img/menu/lemon-pound-cake-017.svg",
+        "desc": "Moist lemon cake with a light citrus glaze.",
+        "options": []
+      },
+      {
+        "id": "butter-croffle-018",
+        "name": "Butter Croffle",
+        "category": "Dessert",
+        "price": 5500,
+        "image_url": "/img/menu/butter-croffle-018.svg",
+        "desc": "A crisp croissant waffle served warm with butter.",
+        "options": [
+          {
+            "type": "Topping",
+            "choices": [
+              {
+                "label": "Plain",
+                "price_delta": 0
+              },
+              {
+                "label": "Ice Cream",
+                "price_delta": 1500
+              },
+              {
+                "label": "Maple Syrup",
+                "price_delta": 500
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "tiramisu-cup-019",
+        "name": "Tiramisu Cup",
+        "category": "Dessert",
+        "price": 6500,
+        "image_url": "/img/menu/tiramisu-cup-019.svg",
+        "desc": "Coffee-soaked cake layered with mascarpone cream.",
+        "options": [
+          {
+            "type": "Whipped Cream",
+            "choices": [
+              {
+                "label": "No Whip",
+                "price_delta": 0
+              },
+              {
+                "label": "Add Whip",
+                "price_delta": 500
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "macaron-set-020",
+        "name": "Macaron Set",
+        "category": "Dessert",
+        "price": 7000,
+        "image_url": "/img/menu/macaron-set-020.svg",
+        "desc": "A colorful set of crisp almond macarons.",
+        "options": [
+          {
+            "type": "Flavor",
+            "choices": [
+              {
+                "label": "Assorted",
+                "price_delta": 0
+              },
+              {
+                "label": "Chocolate",
+                "price_delta": 0
+              },
+              {
+                "label": "Berry",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cold-brew-021",
+        "name": "Cold Brew",
+        "category": "Coffee",
+        "price": 4300,
+        "image_url": "/img/menu/cold-brew-021.svg",
+        "desc": "Slow-steeped coffee served cold with a clean finish.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Iced",
+                "price_delta": 0
+              },
+              {
+                "label": "Hot",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Shot",
+            "choices": [
+              {
+                "label": "Single",
+                "price_delta": 0
+              },
+              {
+                "label": "Double",
+                "price_delta": 500
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "decaf-americano-022",
+        "name": "Decaf Americano",
+        "category": "Coffee",
+        "price": 3800,
+        "image_url": "/img/menu/decaf-americano-022.svg",
+        "desc": "Decaf espresso with a light roasted body.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Shot",
+            "choices": [
+              {
+                "label": "Single",
+                "price_delta": 0
+              },
+              {
+                "label": "Double",
+                "price_delta": 500
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "einspanner-023",
+        "name": "Einspanner",
+        "category": "Coffee",
+        "price": 5200,
+        "image_url": "/img/menu/einspanner-023.svg",
+        "desc": "Iced black coffee topped with sweet cream.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Iced",
+                "price_delta": 0
+              },
+              {
+                "label": "Hot",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Shot",
+            "choices": [
+              {
+                "label": "Single",
+                "price_delta": 0
+              },
+              {
+                "label": "Double",
+                "price_delta": 500
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "flat-white-024",
+        "name": "Flat White",
+        "category": "Coffee",
+        "price": 4800,
+        "image_url": "/img/menu/flat-white-024.svg",
+        "desc": "Rich espresso with fine steamed milk foam.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Shot",
+            "choices": [
+              {
+                "label": "Single",
+                "price_delta": 0
+              },
+              {
+                "label": "Double",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Milk",
+            "choices": [
+              {
+                "label": "Whole Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Low-Fat Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Oat Milk",
+                "price_delta": 600
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "spanish-latte-025",
+        "name": "Spanish Latte",
+        "category": "Latte",
+        "price": 5400,
+        "image_url": "/img/menu/spanish-latte-025.svg",
+        "desc": "A creamy latte sweetened with condensed milk.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Iced",
+                "price_delta": 0
+              },
+              {
+                "label": "Hot",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Milk",
+            "choices": [
+              {
+                "label": "Whole Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Low-Fat Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Oat Milk",
+                "price_delta": 600
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cinnamon-latte-026",
+        "name": "Cinnamon Latte",
+        "category": "Latte",
+        "price": 5300,
+        "image_url": "/img/menu/cinnamon-latte-026.svg",
+        "desc": "Warm cinnamon spice blended into a smooth latte.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Milk",
+            "choices": [
+              {
+                "label": "Whole Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Low-Fat Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Oat Milk",
+                "price_delta": 600
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "black-sesame-latte-027",
+        "name": "Black Sesame Latte",
+        "category": "Latte",
+        "price": 5600,
+        "image_url": "/img/menu/black-sesame-latte-027.svg",
+        "desc": "Nutty black sesame milk latte with a soft finish.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Iced",
+                "price_delta": 0
+              },
+              {
+                "label": "Hot",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Milk",
+            "choices": [
+              {
+                "label": "Whole Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Low-Fat Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Oat Milk",
+                "price_delta": 600
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "chai-latte-028",
+        "name": "Chai Latte",
+        "category": "Latte",
+        "price": 5200,
+        "image_url": "/img/menu/chai-latte-028.svg",
+        "desc": "Spiced tea latte with cinnamon and cardamom notes.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Milk",
+            "choices": [
+              {
+                "label": "Whole Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Low-Fat Milk",
+                "price_delta": 0
+              },
+              {
+                "label": "Oat Milk",
+                "price_delta": 600
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "chamomile-tea-029",
+        "name": "Chamomile Tea",
+        "category": "Tea",
+        "price": 4200,
+        "image_url": "/img/menu/chamomile-tea-029.svg",
+        "desc": "Caffeine-free chamomile tea with a gentle floral aroma.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "peach-iced-tea-030",
+        "name": "Peach Iced Tea",
+        "category": "Tea",
+        "price": 4700,
+        "image_url": "/img/menu/peach-iced-tea-030.svg",
+        "desc": "Sweet peach tea served cold with fruit notes.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Iced",
+                "price_delta": 0
+              },
+              {
+                "label": "Hot",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "green-tea-031",
+        "name": "Green Tea",
+        "category": "Tea",
+        "price": 4000,
+        "image_url": "/img/menu/green-tea-031.svg",
+        "desc": "Clean green tea with a mild grassy finish.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "yuzu-tea-032",
+        "name": "Yuzu Tea",
+        "category": "Tea",
+        "price": 4700,
+        "image_url": "/img/menu/yuzu-tea-032.svg",
+        "desc": "Citrus yuzu tea with a bright honey finish.",
+        "options": [
+          {
+            "type": "Temperature",
+            "choices": [
+              {
+                "label": "Hot",
+                "price_delta": 0
+              },
+              {
+                "label": "Iced",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "strawberry-ade-033",
+        "name": "Strawberry Ade",
+        "category": "Ade",
+        "price": 5200,
+        "image_url": "/img/menu/strawberry-ade-033.svg",
+        "desc": "Sparkling strawberry ade with a fresh berry taste.",
+        "options": [
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Ice",
+            "choices": [
+              {
+                "label": "Regular Ice",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Ice",
+                "price_delta": 0
+              },
+              {
+                "label": "No Ice",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "blue-lemon-ade-034",
+        "name": "Blue Lemon Ade",
+        "category": "Ade",
+        "price": 5200,
+        "image_url": "/img/menu/blue-lemon-ade-034.svg",
+        "desc": "Bright blue lemon ade with crisp sparkling soda.",
+        "options": [
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Ice",
+            "choices": [
+              {
+                "label": "Regular Ice",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Ice",
+                "price_delta": 0
+              },
+              {
+                "label": "No Ice",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "mango-smoothie-035",
+        "name": "Mango Smoothie",
+        "category": "Beverage",
+        "price": 5800,
+        "image_url": "/img/menu/mango-smoothie-035.svg",
+        "desc": "Thick mango smoothie blended with sweet fruit pulp.",
+        "options": [
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "chocolate-frappe-036",
+        "name": "Chocolate Frappe",
+        "category": "Beverage",
+        "price": 5900,
+        "image_url": "/img/menu/chocolate-frappe-036.svg",
+        "desc": "Blended chocolate frappe with a rich cocoa taste.",
+        "options": [
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "plain-yogurt-smoothie-037",
+        "name": "Plain Yogurt Smoothie",
+        "category": "Beverage",
+        "price": 5600,
+        "image_url": "/img/menu/plain-yogurt-smoothie-037.svg",
+        "desc": "Tart yogurt smoothie with a clean creamy finish.",
+        "options": [
+          {
+            "type": "Size",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Large",
+                "price_delta": 500
+              }
+            ]
+          },
+          {
+            "type": "Sweetness",
+            "choices": [
+              {
+                "label": "Regular",
+                "price_delta": 0
+              },
+              {
+                "label": "Less Sweet",
+                "price_delta": 0
+              },
+              {
+                "label": "Extra Sweet",
+                "price_delta": 300
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "bottled-water-038",
+        "name": "Bottled Water",
+        "category": "Beverage",
+        "price": 1500,
+        "image_url": "/img/menu/bottled-water-038.svg",
+        "desc": "Still bottled water for a simple refreshment.",
+        "options": []
+      },
+      {
+        "id": "croissant-039",
+        "name": "Croissant",
+        "category": "Dessert",
+        "price": 3600,
+        "image_url": "/img/menu/croissant-039.svg",
+        "desc": "Buttery layered croissant baked until crisp.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "garlic-bagel-040",
+        "name": "Garlic Bagel",
+        "category": "Dessert",
+        "price": 4300,
+        "image_url": "/img/menu/garlic-bagel-040.svg",
+        "desc": "Savory garlic bagel with a chewy baked crust.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "salt-bread-041",
+        "name": "Salt Bread",
+        "category": "Dessert",
+        "price": 3300,
+        "image_url": "/img/menu/salt-bread-041.svg",
+        "desc": "Soft salt bread with a buttery center.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "egg-tart-042",
+        "name": "Egg Tart",
+        "category": "Dessert",
+        "price": 3800,
+        "image_url": "/img/menu/egg-tart-042.svg",
+        "desc": "Flaky pastry filled with smooth baked custard.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "madeleine-043",
+        "name": "Madeleine",
+        "category": "Dessert",
+        "price": 2800,
+        "image_url": "/img/menu/madeleine-043.svg",
+        "desc": "Small shell-shaped butter cake with a tender crumb.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "cookie-set-044",
+        "name": "Cookie Set",
+        "category": "Dessert",
+        "price": 4200,
+        "image_url": "/img/menu/cookie-set-044.svg",
+        "desc": "A set of crisp cookies in classic cafe flavors.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "apple-pie-045",
+        "name": "Apple Pie",
+        "category": "Dessert",
+        "price": 4800,
+        "image_url": "/img/menu/apple-pie-045.svg",
+        "desc": "Warm apple pie with a flaky golden crust.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "strawberry-shortcake-046",
+        "name": "Strawberry Shortcake",
+        "category": "Dessert",
+        "price": 6200,
+        "image_url": "/img/menu/strawberry-shortcake-046.svg",
+        "desc": "Soft sponge cake layered with cream and strawberries.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "affogato-047",
+        "name": "Affogato",
+        "category": "Dessert",
+        "price": 5500,
+        "image_url": "/img/menu/affogato-047.svg",
+        "desc": "Vanilla ice cream topped with hot espresso.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
+      },
+      {
+        "id": "ice-cream-cup-048",
+        "name": "Ice Cream Cup",
+        "category": "Dessert",
+        "price": 4500,
+        "image_url": "/img/menu/ice-cream-cup-048.svg",
+        "desc": "Creamy ice cream cup with mixed flavors.",
+        "options": [
+          {
+            "type": "Packaging",
+            "choices": [
+              {
+                "label": "Eat Now",
+                "price_delta": 0
+              },
+              {
+                "label": "Take Out",
+                "price_delta": 0
+              }
+            ]
+          },
+          {
+            "type": "Serve",
+            "choices": [
+              {
+                "label": "Room Temp",
+                "price_delta": 0
+              },
+              {
+                "label": "Warmed",
+                "price_delta": 0
+              }
+            ]
+          }
+        ]
       }
     ]
   },
   "sampleGenerateUIRequest": {
     "transcript": "Can I get a latte",
-    "age_group": "sixties",
+    "age_group": "senior_adult",
     "assist_level": 2,
     "menu_context": [
       {

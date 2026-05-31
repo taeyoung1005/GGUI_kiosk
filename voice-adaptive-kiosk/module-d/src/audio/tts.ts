@@ -1,11 +1,14 @@
 // src/audio/tts.ts
 //
-// window.speechSynthesis 기반 한국어 음성 안내(TTS).
-// assist_level 이 높을수록 천천히/또박또박 안내하도록 rate 를 낮춘다.
+// ElevenLabs 기반 영어 음성 안내(TTS).
+// UI 보조 강도와 음색은 분리한다. 시니어 모드여도 목소리는 자연스러운 안내 방송 톤이다.
+// Module A가 서버에서 ElevenLabs mp3를 생성하고, 실패 시에만 browser speechSynthesis로 폴백한다.
 //
 // 사용:
 //   speak("따뜻한 라떼로 주문할까요?", { assistLevel: 2 });
 //   cancelSpeech();
+
+import { apiConfig } from "../api/client";
 
 export interface SpeakOptions {
   /** UI 적응 강도(0~3). 높을수록 느리게 읽는다. */
@@ -24,19 +27,37 @@ export function isTTSSupported(): boolean {
   return typeof window !== "undefined" && "speechSynthesis" in window;
 }
 
-let enVoice: SpeechSynthesisVoice | null = null;
+let announcerVoice: SpeechSynthesisVoice | null = null;
 let voicesRequested = false;
+let currentAudio: HTMLAudioElement | null = null;
+let currentAudioUrl: string | null = null;
+const ELEVENLABS_NARRATION_ENABLED =
+  import.meta.env.VITE_ELEVENLABS_NARRATION === undefined
+    ? true
+    : import.meta.env.VITE_ELEVENLABS_NARRATION !== "false" &&
+      import.meta.env.VITE_ELEVENLABS_NARRATION !== "0";
 
-/** English voice lookup, with a second pass when browsers populate voices late. */
-function ensureEnglishVoice(): void {
+/** English announcer-like voice lookup, with a second pass when browsers populate voices late. */
+function ensureAnnouncerVoice(): void {
   if (!isTTSSupported() || voicesRequested) return;
   voicesRequested = true;
 
   const pick = () => {
     const voices = window.speechSynthesis.getVoices();
-    enVoice =
-      voices.find((v) => v.lang?.toLowerCase().startsWith("en-us")) ??
-      voices.find((v) => v.lang?.toLowerCase().startsWith("en")) ??
+    const english = voices.filter((v) => v.lang?.toLowerCase().startsWith("en"));
+    const preferred = [
+      "samantha",
+      "ava",
+      "allison",
+      "karen",
+      "google us english",
+      "microsoft aria",
+      "microsoft jenny",
+    ];
+    announcerVoice =
+      english.find((v) => preferred.some((name) => v.name.toLowerCase().includes(name))) ??
+      english.find((v) => v.lang?.toLowerCase().startsWith("en-us")) ??
+      english[0] ??
       null;
   };
   pick();
@@ -44,41 +65,79 @@ function ensureEnglishVoice(): void {
   window.speechSynthesis.onvoiceschanged = () => pick();
 }
 
-/** assist_level → 읽기 속도(rate). 높을수록 느림. */
+/** assist_level → 읽기 속도(rate). 안내 방송처럼 일정하게 유지한다. */
 function rateFor(assistLevel: number): number {
-  switch (assistLevel) {
-    case 3:
-      return 0.78;
-    case 2:
-      return 0.85;
-    case 1:
-      return 0.95;
-    default:
-      return 1.0;
-  }
+  void assistLevel;
+  return 1.0;
 }
 
-/** 한국어 안내 발화. 진행 중인 발화는 끊고 새로 읽는다. */
+/** 영어 안내 발화. 진행 중인 발화는 끊고 새로 읽는다. */
 export function speak(text: string, opts: SpeakOptions = {}): void {
-  if (!isTTSSupported() || !text?.trim()) {
+  if (!text?.trim()) {
     opts.onEnd?.();
     return;
   }
-  ensureEnglishVoice();
 
-  // 진행 중 발화 취소(멀티턴에서 안내 중첩 방지)
-  try {
-    window.speechSynthesis.cancel();
-  } catch {
-    /* ignore */
+  cancelSpeech();
+
+  if (ELEVENLABS_NARRATION_ENABLED) {
+    void speakWithElevenLabs(text, opts).then((played) => {
+      if (!played) speakWithBrowserTTS(text, opts);
+    });
+    return;
   }
+
+  speakWithBrowserTTS(text, opts);
+}
+
+async function speakWithElevenLabs(text: string, opts: SpeakOptions): Promise<boolean> {
+  try {
+    const res = await fetch(`${apiConfig.ANALYZE_URL}/demo/announcer-voice/audio`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text }),
+    });
+    if (!res.ok) return false;
+    const blob = await res.blob();
+    if (!blob.size) return false;
+
+    const url = URL.createObjectURL(blob);
+    const audio = new Audio(url);
+    currentAudio = audio;
+    currentAudioUrl = url;
+    audio.volume = opts.volume ?? 1;
+    audio.onended = () => {
+      cleanupAudio(audio, url);
+      opts.onEnd?.();
+    };
+    audio.onerror = () => {
+      cleanupAudio(audio, url);
+    };
+    try {
+      await audio.play();
+    } catch (error) {
+      cleanupAudio(audio, url);
+      throw error;
+    }
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function speakWithBrowserTTS(text: string, opts: SpeakOptions = {}): void {
+  if (!isTTSSupported()) {
+    opts.onEnd?.();
+    return;
+  }
+  ensureAnnouncerVoice();
 
   const u = new SpeechSynthesisUtterance(text);
   u.lang = "en-US";
-  if (enVoice) u.voice = enVoice;
+  if (announcerVoice) u.voice = announcerVoice;
   u.rate = opts.rate ?? rateFor(opts.assistLevel ?? 0);
   u.volume = opts.volume ?? 1;
-  u.pitch = opts.pitch ?? 1;
+  u.pitch = opts.pitch ?? 1.05;
   if (opts.onEnd) u.onend = () => opts.onEnd?.();
 
   window.speechSynthesis.speak(u);
@@ -86,10 +145,22 @@ export function speak(text: string, opts: SpeakOptions = {}): void {
 
 /** 진행 중 안내 즉시 중단. */
 export function cancelSpeech(): void {
+  if (currentAudio) {
+    currentAudio.pause();
+    cleanupAudio(currentAudio, currentAudioUrl);
+  }
+  currentAudio = null;
+  currentAudioUrl = null;
   if (!isTTSSupported()) return;
   try {
     window.speechSynthesis.cancel();
   } catch {
     /* ignore */
   }
+}
+
+function cleanupAudio(audio: HTMLAudioElement, url: string | null): void {
+  if (currentAudio === audio) currentAudio = null;
+  if (currentAudioUrl === url) currentAudioUrl = null;
+  if (url) URL.revokeObjectURL(url);
 }

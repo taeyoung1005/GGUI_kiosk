@@ -29,7 +29,7 @@ def score_behavioral(
     filler_count = sum(transcript.count(filler) for filler in FILLERS)
 
     assist_level = 0
-    if age_group in {"50+", "50대", "60대 이상", "elder"}:
+    if age_group in {"senior_adult", "50+", "50대", "60대 이상", "elder"}:
         assist_level += 1
     if speech_rate < 1.8 or silence_ratio > 0.35:
         assist_level += 1

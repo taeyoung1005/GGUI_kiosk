@@ -20,14 +20,30 @@ from pydantic import BaseModel, Field
 # 타입 별칭
 # ──────────────────────────────────────────────────────────────
 
-# 나이대 그룹 — 영어 decade 버킷(전 연령). 타겟=50대+, 데모는 랜덤 생성.
+# 나이대 그룹 — Vox-Profile broad taxonomy + legacy mock labels.
 AgeGroup = Literal[
+    "young_adult", "adult", "senior_adult",
     "child", "teens", "twenties", "thirties",
     "forties", "fifties", "sixties", "seventies_plus", "unknown",
 ]
 
 # UI 적응 강도 (주축 신호) 0~3
 AssistLevel = Literal[0, 1, 2, 3]
+AdaptiveStep = Literal["recommend", "options", "fulfillment", "loyalty", "payment", "confirm"]
+FulfillmentMode = Literal["Dine In", "Take Out"]
+LoyaltyMode = Literal["scan", "phone", "none"]
+PaymentMethod = Literal["Credit Card", "Gift Card", "Kakao Pay", "Naver Pay", "Pay at Counter"]
+GroundIntentName = Literal[
+    "select_item",
+    "set_options",
+    "set_fulfillment",
+    "set_loyalty",
+    "set_payment",
+    "confirm",
+    "change",
+    "cancel",
+    "unknown",
+]
 
 
 # ──────────────────────────────────────────────────────────────
@@ -98,6 +114,17 @@ class Menu(BaseModel):
     items: List[MenuItem]
 
 
+class AdaptiveOrderState(BaseModel):
+    selected_item_id: str | None = None
+    selected_item_name: str | None = None
+    selected_options: Dict[str, str] = Field(default_factory=dict)
+    quantity: int = Field(default=1, ge=1)
+    fulfillment: FulfillmentMode | None = None
+    loyalty: LoyaltyMode | None = None
+    payment_method: PaymentMethod | None = None
+    total: int = Field(default=0, ge=0)
+
+
 # ──────────────────────────────────────────────────────────────
 # GenerateUIRequest / Response  (Module D → Module C)
 # ──────────────────────────────────────────────────────────────
@@ -110,7 +137,9 @@ class GenerateUIRequest(BaseModel):
     menu_context: List[MenuItem] = Field(
         default_factory=list, description="후보 또는 전체 메뉴 컨텍스트"
     )
-    step: Literal["recommend", "options", "confirm"]
+    order_state: AdaptiveOrderState | None = None
+    possible_actions: List[str] = Field(default_factory=list)
+    step: AdaptiveStep
 
 
 class GenerateUIResponse(BaseModel):
@@ -118,6 +147,39 @@ class GenerateUIResponse(BaseModel):
     embed_url: str = Field(..., description="@ggui-ai/react 로 임베드할 URL")
     # GGUI 런타임이 정의하는 actionSpec 등 자유 형식 → dict(any)
     contract: dict = Field(default_factory=dict)
+
+
+# ──────────────────────────────────────────────────────────────
+# GroundIntentRequest / Response  (Module D → Module C)
+# ──────────────────────────────────────────────────────────────
+
+
+class GroundIntentRequest(BaseModel):
+    step: AdaptiveStep
+    transcript: str
+    korean_text: str | None = None
+    english_proxy_text: str | None = None
+    menu_context: List[MenuItem] = Field(default_factory=list)
+    selected_item: MenuItem | None = None
+    order_state: AdaptiveOrderState | None = None
+
+
+class GroundItemCandidate(BaseModel):
+    item_id: str
+    confidence: float = Field(..., ge=0.0, le=1.0)
+
+
+class GroundIntentResponse(BaseModel):
+    step: AdaptiveStep
+    intent: GroundIntentName
+    item_candidates: List[GroundItemCandidate] = Field(default_factory=list)
+    selected_options: Dict[str, str] = Field(default_factory=dict)
+    fulfillment: FulfillmentMode | None = None
+    loyalty: LoyaltyMode | None = None
+    payment_method: PaymentMethod | None = None
+    confirm: Literal["yes", "no", "change"] | None = None
+    needs_clarification: bool = False
+    clarification_reason: str | None = None
 
 
 # ──────────────────────────────────────────────────────────────
@@ -146,6 +208,11 @@ class OrderResponse(BaseModel):
 __all__ = [
     "AgeGroup",
     "AssistLevel",
+    "AdaptiveStep",
+    "FulfillmentMode",
+    "LoyaltyMode",
+    "PaymentMethod",
+    "GroundIntentName",
     "AgeInfo",
     "BehavioralInfo",
     "AnalyzeResult",
@@ -153,8 +220,12 @@ __all__ = [
     "MenuOption",
     "MenuItem",
     "Menu",
+    "AdaptiveOrderState",
     "GenerateUIRequest",
     "GenerateUIResponse",
+    "GroundIntentRequest",
+    "GroundItemCandidate",
+    "GroundIntentResponse",
     "OrderLine",
     "OrderRequest",
     "OrderResponse",

@@ -33,7 +33,7 @@ D --OrderRequest----->  B  /orders     --> OrderResponse  (mock 결제)
 
 ### 1. `AnalyzeResult`  (A → D)
 음성 → 전사(`transcript`) + 나이대(`age`) + 행동신호(`behavioral`).
-- **적응 주축 = `behavioral.assist_level` (0~3)**. 나이(`age.group`: `"50+" | "under50"`)는 보조.
+- **적응 주축 = `behavioral.assist_level` (0~3)**. 나이(`age.group`: `"young_adult" | "adult" | "senior_adult"`)는 보조.
 - 나이 분류가 부정확해도 행동신호가 스파인이라 UI 강도가 결정된다.
 
 ### 2. `Menu` / `MenuItem` / `MenuOption`  (B → D, C)
@@ -68,7 +68,7 @@ from contracts.schemas import AnalyzeResult, AgeInfo, BehavioralInfo
 result = AnalyzeResult(
     transcript="라떼 하나 주세요",
     language="ko",
-    age=AgeInfo(group="50+", years_est=67, confidence=0.72, child_prob=0.02),
+    age=AgeInfo(group="senior_adult", years_est=67, confidence=0.72, child_prob=0.02),
     behavioral=BehavioralInfo(speech_rate=2.8, silence_ratio=0.46, filler_count=2, assist_level=2),
     duration_ms=1850,
 )
@@ -81,8 +81,8 @@ result = AnalyzeResult(
 
 | 키 / export | 설명 |
 |-------------|------|
-| `sampleAnalyzeResult` / `…Elder` | 느린 어르신 "라떼 하나 주세요", `50+`, `assist_level 2` |
-| `sampleAnalyzeResultYouth` | 빠른 청년 동일 발화, `under50`, `assist_level 0` |
+| `sampleAnalyzeResult` / `…Elder` | 느린 어르신 "라떼 하나 주세요", `senior_adult`, `assist_level 2` |
+| `sampleAnalyzeResultYouth` | 빠른 청년 동일 발화, `young_adult`, `assist_level 0` |
 | `sampleMenu` | OBA 카페 시드 메뉴 (커피/음료/디저트, 옵션 포함) |
 | `sampleGenerateUIRequest` / `…Response` | C 입출력 예시 (`embed_url` 포함) |
 | `sampleOrderRequest` / `…Response` | 주문/ mock 결제 예시 (`status: "paid"`) |

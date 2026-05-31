@@ -21,7 +21,7 @@ import raw from "./mocks.json";
 //   적응 증명: 같은 말이라도 화자에 따라 assist_level 이 갈린다.
 // ────────────────────────────────────────────────────────────
 
-/** 느린 어르신 변형 — 50+, assist_level 2 (보조 강화 UI). */
+/** 느린 어르신 변형 — senior_adult, assist_level 2 (보조 강화 UI). */
 export const sampleAnalyzeResult: AnalyzeResult =
   raw.sampleAnalyzeResultElder as AnalyzeResult;
 
@@ -29,7 +29,7 @@ export const sampleAnalyzeResult: AnalyzeResult =
 export const sampleAnalyzeResultElder: AnalyzeResult =
   raw.sampleAnalyzeResultElder as AnalyzeResult;
 
-/** 빠른 청년 변형 — under50, assist_level 0 (압축된 일반 UI). */
+/** 빠른 청년 변형 — young_adult, assist_level 0 (압축된 일반 UI). */
 export const sampleAnalyzeResultYouth: AnalyzeResult =
   raw.sampleAnalyzeResultYouth as AnalyzeResult;
 

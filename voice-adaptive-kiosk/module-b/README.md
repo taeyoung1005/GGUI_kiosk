@@ -38,31 +38,31 @@ npm run dev          # node --watch server.js
 | 메서드 | 경로 | 설명 | 응답 |
 |--------|------|------|------|
 | GET | `/menu` | 전체 메뉴 | `Menu` |
-| GET | `/menu/search?q=라떼` | 이름·설명·카테고리 부분일치 검색 | `{ query, count, items: MenuItem[] }` |
+| GET | `/menu/search?q=latte` | 이름·설명·카테고리 부분일치 검색 | `{ query, count, items: MenuItem[] }` |
 | POST | `/orders` | 주문 생성 (1~2초 결제 지연) | `OrderResponse` (`status:"paid"`) |
 | GET | `/orders/:id` | 주문 조회 | `OrderResponse` / 404 |
 | GET | `/health` | 헬스체크 | `{ status:"ok", ... }` |
 
 - CORS 는 모든 오리진 허용(데모용) → 프론트(`localhost:5173`)에서 바로 호출 가능.
-- `/menu/search` 에서 **"라떼"** 로 검색하면 카페라떼·바닐라라떼·녹차라떼·초코라떼·고구마라떼 등
-  **라떼류 다수가 반환**된다 (추천/모호성 데모의 핵심).
+- `/menu/search` 에서 **`latte`** 로 검색하면 Caffe Latte·Vanilla Latte·Matcha Latte·Caramel Latte·Hazelnut Latte 등
+  **라떼류 10종이 반환**된다 (추천/모호성 데모의 핵심).
 
 ---
 
 ## 데이터 (`data/menu.seed.json`)
 
-실제같은 한국 **카페 + 분식** 1곳(`OBA 한끼카페`)의 메뉴 **20개**.
-카테고리: `커피 · 라떼 · 음료 · 분식 · 디저트`.
+실제같은 카페 1곳(`OBA Cafe`)의 메뉴 **48개**.
+카테고리: `Coffee · Latte · Tea · Ade · Beverage · Dessert`.
 
 각 항목은 `contracts` 의 `MenuItem` 형태:
 `{ id, name, category, price, image_url, desc, options[] }`.
-옵션은 `{ type, choices:[{ label, price_delta }] }` — 예: 온도(HOT/ICE), 사이즈(R/L, L은 +500),
-샷/우유/당도/맵기/토핑 등.
+옵션은 `{ type, choices:[{ label, price_delta }] }` — 예: Temperature(Hot/Iced), Size(Regular/Large, Large는 +500),
+Shot/Milk/Sweetness/Topping 등.
 
-> 라떼류(라떼 카테고리) 5종 + "라떼"가 이름/설명에 들어가는 항목이 충분히 들어 있어,
-> 음성 "라떼…" 입력 시 후보 다수가 잡히도록 설계되어 있다.
+> 라떼류(Latte 카테고리) 10종이 들어 있어,
+> 음성 "latte…" 입력 시 후보 다수가 잡히도록 설계되어 있다.
 
-`image_url` 은 placeholder 경로(`/img/menu/*.png`). `public/img/menu/` 에 실제 이미지를 두면
+`image_url` 은 `/img/menu/<id>.svg` 경로. `public/img/menu/` 에 실제 이미지를 두면
 서버가 정적으로 서빙하며, 없어도 흐름에는 영향 없다(이미지 404 만 발생).
 
 ---
@@ -81,13 +81,13 @@ npm run dev          # node --watch server.js
 # 전체 메뉴
 curl -s http://localhost:8001/menu | head
 
-# "라떼" 검색 → 라떼류 다수
-curl -s "http://localhost:8001/menu/search?q=라떼"
+# "latte" 검색 → 라떼류 다수
+curl -s "http://localhost:8001/menu/search?q=latte"
 
 # 주문 (mock 결제, 1~2초 후 응답)
 curl -s -X POST http://localhost:8001/orders \
   -H "Content-Type: application/json" \
-  -d '{ "items": [ { "item_id": "cafelatte-003", "options": { "온도": "HOT", "사이즈": "L" }, "qty": 1 } ] }'
+  -d '{ "items": [ { "item_id": "caffe-latte-003", "options": { "Temperature": "Hot", "Size": "Large" }, "qty": 1 } ] }'
 # → { "order_id": "ord-1001", "total": 5000, "status": "paid" }
 
 # 주문 조회
@@ -100,7 +100,7 @@ curl -s http://localhost:8001/orders/ord-1001
 
 ```
 Module D (프론트) ──GET /menu────────► Module B
-Module D / C      ──GET /menu/search─► Module B   (라떼 후보 검색)
+Module D / C      ──GET /menu/search─► Module B   (latte 후보 검색)
 Module D          ──POST /orders─────► Module B   (옵션 확정 → mock 결제)
 ```
 

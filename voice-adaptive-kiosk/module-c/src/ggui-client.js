@@ -20,20 +20,28 @@ import { buildDataContract } from "./contract.js";
 import { resolveProfile, pickCandidates, stepCopy } from "./adapt.js";
 
 /** assist_level/age_group/step → 생성 LLM 용 자연어 UI 규율 프롬프트. */
-export function buildPrompt({ step, profile, transcript, candidates }) {
+export function buildPrompt({ step, profile, transcript, candidates, orderState, possibleActions }) {
   const t = profile.tokens;
   const copy = stepCopy(step, profile, candidates);
+  const structureByStep = {
+    recommend: `- ${t.card_count} large menu cards in a grid. Each card: photo (placeholder ok) + name + price + a large "Order this" button.`,
+    options: "- Choose options (temperature/size) for the selected item with large buttons. Include a clear Continue button.",
+    fulfillment: "- Two large choices: Dine In and Take Out. Show the selected item and current total.",
+    loyalty: "- Three large choices: App Coupon, Earn Points, and Skip. Make Skip safe and visible.",
+    payment: "- Payment method choices. Make clear that payment is not charged until final confirmation.",
+    confirm: "- Final order summary + one large Pay/Yes button and one Change button.",
+  };
   const lines = [
     "You build a voice-adaptive kiosk UI for people who struggle with kiosks (mainly seniors aged 50+). Write ALL UI text in ENGLISH.",
     `User utterance (STT): "${transcript ?? ""}"`,
     `Adaptation intensity assist_level=${profile.assist_level} (effective=${profile.effective_level}), age group=${profile.age_group}.`,
+    `Current step: ${step}.`,
+    `Order state JSON: ${JSON.stringify(orderState ?? {})}.`,
+    `Possible actions: ${(possibleActions ?? []).join(", ") || "none"}.`,
+    `Menu catalog JSON: ${JSON.stringify(candidates ?? [])}.`,
     "",
     "[FIXED STRUCTURE — never change]",
-    step === "recommend"
-      ? `- ${t.card_count} large menu cards in a grid. Each card: photo (placeholder ok) + name + price + a large "Order this" button.`
-      : step === "options"
-      ? "- Choose options (temperature/size) one item at a time with large buttons. Include a Back button."
-      : "- Selection summary + only two large 'Yes/No' buttons.",
+    structureByStep[step] ?? structureByStep.recommend,
     "- Title/guidance text at the top. No clutter.",
     "",
     "[ADAPT CONTENT ONLY — intensity rules]",
@@ -46,13 +54,17 @@ export function buildPrompt({ step, profile, transcript, candidates }) {
     "- High color contrast, large touch targets, ENGLISH only.",
     "",
     `Title: ${copy.title} / Guidance: ${copy.subtitle}`,
+    "Use only menu items from the provided Menu catalog JSON; do not invent menu names.",
+    step === "recommend"
+      ? `Pick the best ${t.card_count} matching menu items from the catalog and show only those cards.`
+      : "Use the selected item/order state from props for this step.",
     "Use the actionSpec button labels/actions as-is, and let the user advance to the next step with one big touch.",
   ];
   return lines.join("\n");
 }
 
 /** GGUI render props(단계별). DataContract.propsSpec 과 키가 일치해야 한다. */
-function buildProps({ step, profile, candidates, item, selectedOptions, total }) {
+export function buildGguiProps({ step, profile, candidates, item, selectedOptions, total, orderState, possibleActions }) {
   const copy = stepCopy(step, profile, candidates);
   const base = {
     title: copy.title,
@@ -60,17 +72,23 @@ function buildProps({ step, profile, candidates, item, selectedOptions, total })
     assistLevel: profile.assist_level,
     ageGroup: profile.age_group,
     voiceGuide: profile.tokens.voice_guide ? copy.voice : "",
+    orderState: orderState ?? {},
+    possibleActions: possibleActions ?? [],
   };
+  const targetItem = item ?? candidates[0];
   if (step === "options") {
-    return { ...base, item: item ?? candidates[0], options: (item ?? candidates[0])?.options ?? [] };
+    return { ...base, item: targetItem, options: targetItem?.options ?? [] };
   }
   if (step === "confirm") {
     return {
       ...base,
-      item: item ?? candidates[0],
+      item: targetItem,
       selectedOptions: selectedOptions ?? {},
-      total: total ?? (item ?? candidates[0])?.price ?? 0,
+      total: total ?? orderState?.total ?? targetItem?.price ?? 0,
     };
+  }
+  if (step === "fulfillment" || step === "loyalty" || step === "payment") {
+    return { ...base, item: targetItem, total: total ?? orderState?.total ?? targetItem?.price ?? 0 };
   }
   return { ...base, items: candidates };
 }
@@ -90,13 +108,38 @@ export async function generateViaGgui(req, env) {
     item,
     selectedOptions,
     total,
+    order_state,
+    possible_actions,
   } = req;
 
   const profile = resolveProfile({ assist_level, age_group });
-  const candidates = pickCandidates(menu_context, transcript, profile.tokens.card_count);
+  const candidates =
+    step === "recommend"
+      ? (Array.isArray(menu_context) ? menu_context.filter(Boolean) : [])
+      : pickCandidates(menu_context, transcript, profile.tokens.card_count);
+  const visibleCandidates = pickCandidates(candidates, transcript, profile.tokens.card_count);
   const contract = buildDataContract(step, { candidates, profile });
-  const prompt = buildPrompt({ step, profile, transcript, candidates });
-  const props = buildProps({ step, profile, candidates, item, selectedOptions, total });
+  const targetItem = item ?? menu_context?.[0] ?? visibleCandidates[0] ?? candidates[0];
+  const selected = selectedOptions ?? order_state?.selected_options ?? {};
+  const resolvedTotal = total ?? order_state?.total;
+  const prompt = buildPrompt({
+    step,
+    profile,
+    transcript,
+    candidates,
+    orderState: order_state,
+    possibleActions: possible_actions,
+  });
+  const props = buildGguiProps({
+    step,
+    profile,
+    candidates,
+    item: targetItem,
+    selectedOptions: selected,
+    total: resolvedTotal,
+    orderState: order_state,
+    possibleActions: possible_actions,
+  });
 
   const gguiUrl = (env.GGUI_URL || "http://localhost:6781").replace(/\/$/, "");
   const bearer = env.GGUI_BEARER || "dev";
@@ -112,13 +155,9 @@ export async function generateViaGgui(req, env) {
   try {
     await client.connect(transport);
 
-    // 0) new session — 실서버는 chat당 sessionId 를 먼저 요구한다(ggui_new_session).
-    //    그 sessionId 를 handshake 에 전달해야 함(미전달 시 -32602 검증 거부 → LOCAL 폴백).
-    const sessionRes = await client.callTool({ name: "ggui_new_session", arguments: {} });
-    const sessionId = pickFromResult(sessionRes, ["sessionId", "session_id"]);
-    if (!sessionId) {
-      throw new Error("ggui_new_session: sessionId 없음 (응답: " + safe(sessionRes) + ")");
-    }
+    // 0) Optional new session. Older rc builds required ggui_new_session; latest GGUI
+    // starts from ggui_handshake and no longer registers the session tool.
+    const sessionId = await createGguiSessionIfAvailable(client);
 
     // GGUI 계약 불변식: actionSpec[*].nextStep 은 agentCapabilities.tools 에 선언된 것만 허용.
     // 멀티턴은 module-d 가 /generate-ui 재호출로 처리하므로 GGUI 전송 시 nextStep 제거(검증 통과).
@@ -132,7 +171,10 @@ export async function generateViaGgui(req, env) {
     const handshakeRes = await client.callTool({
       name: "ggui_handshake",
       arguments: {
-        sessionId,
+        ...(sessionId ? { sessionId } : {}),
+        ...(env.GGUI_FORCE_CREATE === "1" || env.GGUI_FORCE_CREATE === "true"
+          ? { forceCreate: true }
+          : {}),
         intent: contract.intent,
         blueprintDraft: {
           contract: { propsSpec: contract.propsSpec, actionSpec: gguiActionSpec },
@@ -146,25 +188,34 @@ export async function generateViaGgui(req, env) {
       throw new Error("ggui_handshake: handshakeId 없음 (응답: " + safe(handshakeRes) + ")");
     }
 
-    // 2) push — accept + props. (실서버 툴은 ggui_render 가 아니라 ggui_push)
-    const pushRes = await client.callTool({
-      name: "ggui_push",
-      arguments: { handshakeId, decision: { kind: "accept" }, props },
+    // 2) render — accept + props. Latest GGUI uses ggui_render; older rc builds used ggui_push.
+    const pushRes = await callGguiRenderTool(client, {
+      handshakeId,
+      decision: { kind: "accept" },
+      props,
     });
-    // 실서버 출력: { stackItemId, url, ... } → embed_url = url, render_id = stackItemId
-    const url = pickFromResult(pushRes, ["url", "embedUrl", "embed_url"]);
-    const stackItemId = pickFromResult(pushRes, ["stackItemId", "stack_item_id", "renderId"]);
-
-    if (!url && !stackItemId) {
-      throw new Error("ggui_push: url/stackItemId 없음 (응답: " + safe(pushRes) + ")");
-    }
-
-    const embed_url = url ? url : `${gguiUrl}/r/${stackItemId}`;
+    const normalizedPush = normalizeGguiPushResult(pushRes, gguiUrl);
+    const resource = normalizedPush.resource_uri
+      ? await readGguiResource(client, normalizedPush.resource_uri)
+      : null;
 
     return {
-      render_id: String(stackItemId ?? `r-${Date.now()}`),
-      embed_url,
-      contract: { actionSpec: contract.actionSpec, intent: contract.intent },
+      render_id: normalizedPush.render_id,
+      embed_url: normalizedPush.embed_url,
+      contract: {
+        actionSpec: contract.actionSpec,
+        intent: contract.intent,
+        ...(normalizedPush.resource_uri
+          ? {
+              _ggui: {
+                resource_uri: normalizedPush.resource_uri,
+                meta: normalizedPush.meta,
+                html: resource?.html ?? "",
+                csp: resource?.csp ?? null,
+              },
+            }
+          : {}),
+      },
     };
   } finally {
     try {
@@ -177,6 +228,101 @@ export async function generateViaGgui(req, env) {
 
 // ── helpers ─────────────────────────────────────────────────
 
+/** 최신 GGUI(`ggui_render`)를 우선 호출하고, 구버전 서버면 `ggui_push`로 폴백한다. */
+export async function callGguiRenderTool(client, args) {
+  const latest = await client
+    .callTool({ name: "ggui_render", arguments: args })
+    .catch((err) => ({ __toolError: err }));
+  if (!isToolNotFound(latest, "ggui_render")) return latest;
+  return client.callTool({ name: "ggui_push", arguments: args });
+}
+
+/** 구버전 GGUI session tool이 있으면 sessionId를 만들고, 최신 GGUI면 생략한다. */
+export async function createGguiSessionIfAvailable(client) {
+  const sessionRes = await client
+    .callTool({ name: "ggui_new_session", arguments: {} })
+    .catch((err) => ({ __toolError: err }));
+  if (isToolNotFound(sessionRes, "ggui_new_session")) return undefined;
+  const sessionId = pickFromResult(sessionRes, ["sessionId", "session_id"]);
+  if (!sessionId) {
+    throw new Error("ggui_new_session: sessionId 없음 (응답: " + safe(sessionRes) + ")");
+  }
+  return sessionId;
+}
+
+export async function consumeGguiEvents(renderId, env, timeout = 0) {
+  const gguiUrl = (env.GGUI_URL || "http://localhost:6781").replace(/\/$/, "");
+  const bearer = env.GGUI_BEARER || "dev";
+  const transport = new StreamableHTTPClientTransport(new URL(`${gguiUrl}/mcp`), {
+    requestInit: { headers: { Authorization: `Bearer ${bearer}` } },
+  });
+  const client = new Client(
+    { name: "voice-adaptive-kiosk-module-c-consume", version: "0.1.0" },
+    { capabilities: {} }
+  );
+
+  try {
+    await client.connect(transport);
+    const res = await client.callTool({
+      name: "ggui_consume",
+      arguments: { renderId, timeout },
+    });
+    return {
+      events: pickFromResult(res, ["events"]) ?? [],
+      status: pickFromResult(res, ["status"]) ?? "unknown",
+    };
+  } finally {
+    try {
+      await client.close();
+    } catch {
+      /* noop */
+    }
+  }
+}
+
+export async function readGguiResource(client, resourceUri) {
+  const res = await client.readResource({ uri: resourceUri });
+  const first = Array.isArray(res.contents) ? res.contents[0] : null;
+  return {
+    html: typeof first?.text === "string" ? first.text : "",
+    csp: first?._meta?.ui?.csp ?? null,
+  };
+}
+
+/** 실서버 `ggui_push`/최신 `ggui_render` 응답을 렌더 가능한 결과로 정규화한다. */
+export function normalizeGguiPushResult(pushRes, gguiUrl) {
+  // 실서버 출력: { stackItemId, url, codeReady, ... } → embed_url = url, render_id = stackItemId
+  const url = pickFromResult(pushRes, ["url", "embedUrl", "embed_url"]);
+  const stackItemId = pickFromResult(pushRes, ["stackItemId", "stack_item_id", "renderId"]);
+  const shortCode = pickFromResult(pushRes, ["shortCode", "short_code"]);
+  const codeReady = pickFromResult(pushRes, ["codeReady", "code_ready"]);
+  const meta = buildMcpAppMeta(pushRes);
+  const resourceUri =
+    pickFromResult(pushRes, ["resourceUri", "resource_uri"]) ??
+    meta?.["ui/resourceUri"] ??
+    meta?.ui?.resourceUri;
+  const renderMeta = meta?.["ai.ggui/render"];
+  const latestCodeReady = Boolean(
+    resourceUri &&
+      renderMeta?.renderId &&
+      (renderMeta?.codeUrl || renderMeta?.codeHash || renderMeta?.runtimeUrl)
+  );
+
+  if (!url && !stackItemId) {
+    throw new Error("ggui_push: url/stackItemId 없음 (응답: " + safe(pushRes) + ")");
+  }
+  if (codeReady !== true && !latestCodeReady) {
+    throw new Error("ggui_push: codeReady=false (응답: " + safe(pushRes) + ")");
+  }
+
+  return {
+    render_id: String(stackItemId ?? `r-${Date.now()}`),
+    embed_url: url ? url : shortCode ? `${gguiUrl}/r/${shortCode}` : "",
+    ...(resourceUri ? { resource_uri: resourceUri } : {}),
+    ...(meta ? { meta } : {}),
+  };
+}
+
 /** "openai:gpt-5.5-2026-04-23" → "openai-gpt-5.5-2026-04-23" (generator id 규칙: [a-z0-9_:.-]). */
 function gguiModelToGenerator(model) {
   return String(model).replace(/:/g, "-");
@@ -188,6 +334,25 @@ function safe(v) {
   } catch {
     return String(v);
   }
+}
+
+function buildMcpAppMeta(res) {
+  const existing = res?._meta;
+  if (existing?.["ai.ggui/render"]) return existing;
+  return undefined;
+}
+
+function isToolNotFound(res, toolName) {
+  const message =
+    res?.__toolError?.message ??
+    res?.message ??
+    res?.content?.map((block) => block?.text ?? "").join("\n") ??
+    "";
+  return (
+    typeof message === "string" &&
+    message.includes(toolName) &&
+    /not found|unknown tool|Tool .* not found/i.test(message)
+  );
 }
 
 /**

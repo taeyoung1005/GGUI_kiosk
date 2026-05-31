@@ -49,6 +49,9 @@ data/clips/
 module-a/artifacts/
 *.wav
 *.flac
+# imagegen source sheets are reproducible; keep only item SVG assets.
+module-b/public/img/menu/_imagegen-contact-sheet*.png
+module-d/public/img/menu/_imagegen-contact-sheet*.png
 # 단, 시드 메뉴 JSON 은 추적
 !module-b/data/menu.seed.json
 

@@ -10,34 +10,36 @@
 import { useEffect, useMemo, useState } from "react";
 import StaticKiosk from "./ui/StaticKiosk";
 import AdaptiveKiosk from "./ui/AdaptiveKiosk";
+import StandardComparisonKiosk from "./ui/StandardComparisonKiosk";
 import { Orchestrator, type FlowState, initialFlowState } from "./flow/orchestrator";
-import { USE_MOCK, apiConfig } from "./api/client";
+import { KOREAN_PROXY_VOICES, USE_MOCK, type KoreanProxyVoiceChoice } from "./api/client";
 import { isRecordingSupported } from "./audio/recorder";
 import "./styles.css";
 
-type Mode = "compare" | "static" | "adaptive";
+type AppMode = "standard-only" | "adaptive-compare";
 
 const STEP_ORDER: { key: string; label: string }[] = [
-  { key: "voice", label: "Voice Input" },
-  { key: "analyze", label: "Analyze (A)" },
-  { key: "menu", label: "Menu (B)" },
-  { key: "generate", label: "Adaptive UI (C)" },
-  { key: "order", label: "Payment (B)" },
-  { key: "done", label: "Done" },
+  { key: "voice", label: "Voice Order" },
+  { key: "analyze", label: "Listening" },
+  { key: "menu", label: "Menu" },
+  { key: "generate", label: "Choose" },
+  { key: "order", label: "Payment" },
+  { key: "done", label: "Complete" },
 ];
 
 export default function App() {
   // orchestrator 는 앱 수명 동안 단일 인스턴스
   const flow = useMemo(() => new Orchestrator(), []);
   const [state, setState] = useState<FlowState>(initialFlowState());
-  const [mode, setMode] = useState<Mode>("compare");
-  const [variant, setVariant] = useState<"elder" | "youth">("elder");
+  const [mode, setMode] = useState<AppMode>("standard-only");
+  const [playbackVoice, setPlaybackVoice] = useState<KoreanProxyVoiceChoice>("voice-1");
 
   useEffect(() => flow.subscribe(setState), [flow]);
 
-  // 음성 흐름이 진행되면 자동으로 adaptive 모드로 전환
+  // 음성 흐름이 진행되면 자동으로 비교 모드로 전환
   useEffect(() => {
-    if (state.phase !== "idle" && mode === "static") setMode("compare");
+    if (state.phase !== "idle" && mode === "standard-only") setMode("adaptive-compare");
+    if (state.phase === "idle" && mode !== "standard-only") setMode("standard-only");
   }, [mode, state.phase]);
 
   useEffect(() => {
@@ -46,9 +48,19 @@ export default function App() {
   }, [state.phase, state.step]);
 
   function startVoice() {
-    flow.setMockVariant(variant);
-    setMode("compare");
-    flow.startVoiceOrder();
+    flow.setMockVariant("elder");
+    flow.setProxyVoice(playbackVoice);
+    setMode("adaptive-compare");
+    if (state.phase === "adaptive") {
+      flow.respeak();
+    } else {
+      flow.startVoiceOrder();
+    }
+  }
+
+  function choosePlaybackVoice(next: KoreanProxyVoiceChoice) {
+    setPlaybackVoice(next);
+    flow.setProxyVoice(next);
   }
 
   const recording = state.phase === "recording";
@@ -57,34 +69,8 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <h1>OBA Adaptive Kiosk</h1>
-          <small>Before and after, on one demo screen</small>
-        </div>
-
-        <div className="header-actions">
-          <span className={"badge " + (USE_MOCK ? "mock" : "live")}>
-            {USE_MOCK ? "MOCK" : "LIVE"}
-          </span>
-          <div className="mode-toggle">
-            <button
-              className={mode === "compare" ? "active" : ""}
-              onClick={() => setMode("compare")}
-            >
-              Compare
-            </button>
-            <button
-              className={mode === "static" ? "active" : ""}
-              onClick={() => setMode("static")}
-            >
-              Standard (Before)
-            </button>
-            <button
-              className={mode === "adaptive" ? "active" : ""}
-              onClick={() => setMode("adaptive")}
-            >
-              Adaptive (After)
-            </button>
-          </div>
+          <h1>OBA Cafe Kiosk</h1>
+          <small>Voice-assisted ordering</small>
         </div>
       </header>
 
@@ -96,7 +82,7 @@ export default function App() {
         <div className="mic-bar">
           {!recording ? (
             <button className="mic-btn" onClick={startVoice}>
-              🎤 Start Voice Order
+              🎤 {state.phase === "adaptive" ? "Speak Next" : "Start Voice Order"}
             </button>
           ) : (
             <>
@@ -112,24 +98,18 @@ export default function App() {
             </>
           )}
           <span className="mic-status">{state.message}</span>
-
-          {/* mock 데모용 변형 토글: 같은 발화라도 신호가 달라 화면이 갈린다 */}
-          {USE_MOCK && (
-            <div className="variant">
-              <button
-                className={variant === "elder" ? "active" : ""}
-                onClick={() => setVariant("elder")}
-                title="sixties, slower speech -> assist_level 2"
-              >
-                Senior (Slow)
-              </button>
-              <button
-                className={variant === "youth" ? "active" : ""}
-                onClick={() => setVariant("youth")}
-                title="twenties, faster speech -> assist_level 0"
-              >
-                Younger (Fast)
-              </button>
+          {!recording && (
+            <div className="voice-selector" aria-label="Playback voice">
+              {KOREAN_PROXY_VOICES.map((voice) => (
+                <button
+                  key={voice.id}
+                  className={playbackVoice === voice.id ? "active" : ""}
+                  type="button"
+                  onClick={() => choosePlaybackVoice(voice.id)}
+                >
+                  {voice.label}
+                </button>
+              ))}
             </div>
           )}
         </div>
@@ -141,39 +121,56 @@ export default function App() {
           </p>
         )}
 
-        {/* 본문: 모드에 따라 일반/적응 */}
         <section className={"kiosk-stage " + mode}>
-          {(mode === "compare" || mode === "static") && (
-            <section className="demo-pane before-pane" aria-label="Standard kiosk before screen">
-              <div className="pane-heading">
-                <div>
-                  <p>Standard / Before</p>
-                  <h2>Dense fallback kiosk</h2>
+          {mode === "standard-only" && (
+            <section className="standard-showcase" aria-label="Standard kiosk before screen">
+              <div className="kiosk-frame standard-frame">
+                <div className="pane-heading">
+                  <div>
+                    <p>Standard / Before</p>
+                    <h2>Existing kiosk payment flow</h2>
+                  </div>
+                  <span>Original</span>
                 </div>
-                <span>Fallback</span>
+                <StaticKiosk />
               </div>
-              <StaticKiosk />
             </section>
           )}
 
-          {(mode === "compare" || mode === "adaptive") && (
-            <section className="demo-pane after-pane" aria-label="Adaptive kiosk after screen">
-              <div className="pane-heading">
-                <div>
-                  <p>Adaptive / After</p>
-                  <h2>Voice-driven assist UI</h2>
+          {mode === "adaptive-compare" && (
+            <section className="comparison-grid" aria-label="Standard and adaptive kiosk comparison">
+              <section className="compare-pane standard" aria-label="Standard kiosk comparison pane">
+                <div className="kiosk-frame standard-frame">
+                  <div className="pane-heading">
+                    <div>
+                      <p>Standard / Same Step</p>
+                      <h2>Original kiosk path</h2>
+                    </div>
+                    <span>Complex</span>
+                  </div>
+                  <StandardComparisonKiosk state={state} />
                 </div>
-                <span>GGUI</span>
-              </div>
-              <AdaptiveKiosk flow={flow} state={state} />
+              </section>
+
+              <section className="compare-pane adaptive" aria-label="Adaptive kiosk after screen">
+                <div className="kiosk-frame adaptive-frame">
+                  <div className="pane-heading">
+                    <div>
+                      <p>Voice Order</p>
+                      <h2>Easy order screen</h2>
+                    </div>
+                    <span>Assisted</span>
+                  </div>
+                  <AdaptiveKiosk flow={flow} state={state} />
+                </div>
+              </section>
             </section>
           )}
         </section>
       </main>
 
       <footer className="contract-footer">
-        A {apiConfig.ANALYZE_URL} · B {apiConfig.MENU_URL} · C{" "}
-        {apiConfig.GGUI_URL} · Adaptation signal = behavioral assist_level, age is secondary
+        Please check your order before payment.
       </footer>
     </div>
   );

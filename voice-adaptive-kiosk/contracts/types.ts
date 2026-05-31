@@ -15,11 +15,14 @@
 // ────────────────────────────────────────────────────────────
 
 /**
- * 나이대 그룹 — 영어 decade 버킷. 데모는 랜덤 생성, 타겟=50대+ 시니어지만 전 연령 동작.
- * years_est(연속값)이 정밀 소스, group 은 버킷 라벨. UI 적응의 주축은 assist_level.
- * 시니어(fifties/sixties/seventies_plus)는 보조로 적응 강도를 한 단계 올린다.
+ * 나이대 그룹 — Vox-Profile broad taxonomy.
+ * years_est(연속값)이 정밀 소스, group 은 rough age 라벨. UI 적응의 주축은 assist_level.
+ * senior_adult 는 보조로 적응 강도를 한 단계 올린다.
  */
 export type AgeGroup =
+  | "young_adult"
+  | "adult"
+  | "senior_adult"
   | "child"
   | "teens"
   | "twenties"
@@ -95,6 +98,34 @@ export interface Menu {
   items: MenuItem[];
 }
 
+export type AdaptiveStep =
+  | "recommend"
+  | "options"
+  | "fulfillment"
+  | "loyalty"
+  | "payment"
+  | "confirm";
+
+export type FulfillmentMode = "Dine In" | "Take Out";
+export type LoyaltyMode = "scan" | "phone" | "none";
+export type PaymentMethod =
+  | "Credit Card"
+  | "Gift Card"
+  | "Kakao Pay"
+  | "Naver Pay"
+  | "Pay at Counter";
+
+export interface AdaptiveOrderState {
+  selected_item_id?: string | null;
+  selected_item_name?: string | null;
+  selected_options: Record<string, string>;
+  quantity: number;
+  fulfillment?: FulfillmentMode | null;
+  loyalty?: LoyaltyMode | null;
+  payment_method?: PaymentMethod | null;
+  total: number;
+}
+
 // ────────────────────────────────────────────────────────────
 // GenerateUIRequest / Response  (Module D → Module C)
 //   GGUI(OpenAI GPT)가 추천+적응 UI를 생성. 구조 고정, 내용만 적응.
@@ -106,8 +137,12 @@ export interface GenerateUIRequest {
   assist_level: 0 | 1 | 2 | 3;
   /** 후보 또는 전체 메뉴 아이템 컨텍스트 */
   menu_context: MenuItem[];
+  /** 현재 주문 상태. GGUI가 매 턴 같은 context로 화면을 재생성하기 위한 값. */
+  order_state?: AdaptiveOrderState;
+  /** 현재 단계에서 사용자가 할 수 있는 action 이름 목록. */
+  possible_actions?: string[];
   /** 멀티턴 단계 */
-  step: "recommend" | "options" | "confirm";
+  step: AdaptiveStep;
 }
 
 export interface GenerateUIResponse {
@@ -117,6 +152,51 @@ export interface GenerateUIResponse {
   embed_url: string;
   /** 사용자 액션 정의(actionSpec 등). 형태는 GGUI 런타임에 위임 → any */
   contract: any;
+}
+
+// ────────────────────────────────────────────────────────────
+// GroundIntentRequest / Response  (Module D → Module C)
+//   GGUI 생성 전 단계. 발화 + 메뉴/옵션 DB를 구조화해 검증된 후보와
+//   order_state patch만 GGUI에 넘기기 위한 grounding 계약.
+// ────────────────────────────────────────────────────────────
+
+export interface GroundIntentRequest {
+  step: AdaptiveStep;
+  transcript: string;
+  korean_text?: string;
+  english_proxy_text?: string;
+  menu_context: MenuItem[];
+  selected_item?: MenuItem | null;
+  order_state?: AdaptiveOrderState;
+}
+
+export type GroundIntentName =
+  | "select_item"
+  | "set_options"
+  | "set_fulfillment"
+  | "set_loyalty"
+  | "set_payment"
+  | "confirm"
+  | "change"
+  | "cancel"
+  | "unknown";
+
+export interface GroundItemCandidate {
+  item_id: string;
+  confidence: number;
+}
+
+export interface GroundIntentResponse {
+  step: AdaptiveStep;
+  intent: GroundIntentName;
+  item_candidates: GroundItemCandidate[];
+  selected_options: Record<string, string>;
+  fulfillment: FulfillmentMode | null;
+  loyalty: LoyaltyMode | null;
+  payment_method: PaymentMethod | null;
+  confirm: "yes" | "no" | "change" | null;
+  needs_clarification: boolean;
+  clarification_reason: string | null;
 }
 
 // ────────────────────────────────────────────────────────────

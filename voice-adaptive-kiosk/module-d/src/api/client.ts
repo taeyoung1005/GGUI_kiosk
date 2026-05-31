@@ -6,11 +6,14 @@
 // 정본 계약 타입은 루트 contracts/types.ts 를 직접 import (@contracts alias).
 
 import type {
+  AgeGroup,
   AnalyzeResult,
   Menu,
   MenuItem,
   GenerateUIRequest,
   GenerateUIResponse,
+  GroundIntentRequest,
+  GroundIntentResponse,
   OrderRequest,
   OrderResponse,
 } from "@contracts/types";
@@ -35,6 +38,32 @@ const GGUI_URL = ENV.VITE_GGUI_URL || "http://localhost:8002";
 const ANALYZE_API_KEY = ENV.VITE_ANALYZE_API_KEY || "";
 
 const DEFAULT_TIMEOUT_MS = 8000;
+const DEFAULT_KOREAN_DEMO_TEXT = ENV.VITE_KOREAN_DEMO_TEXT || "라떼 한 잔 주세요";
+export type KoreanProxyVoiceChoice = "voice-1" | "voice-2";
+export const KOREAN_PROXY_VOICES: Array<{
+  id: KoreanProxyVoiceChoice;
+  label: string;
+  voiceId: string;
+  gender: "female" | "male";
+}> = [
+  {
+    id: "voice-1",
+    label: "Voice 1",
+    voiceId: "wGcFBfKz5yUQqhqr0mVy",
+    gender: "female",
+  },
+  {
+    id: "voice-2",
+    label: "Voice 2",
+    voiceId: "pqHfZKP75CvOlQylNhV4",
+    gender: "male",
+  },
+];
+const OPTIONAL_UPGRADES = [
+  { type: "Set Upgrade", label: "Set dessert", priceDelta: 3000 },
+  { type: "Combo Upgrade", label: "Large size combo", priceDelta: 1500 },
+  { type: "Add-on", label: "Extra shot", priceDelta: 500 },
+] as const;
 
 /** mock 흐름의 체감용 지연(ms). 실제 호출엔 영향 없음. */
 function delay(ms: number): Promise<void> {
@@ -63,6 +92,18 @@ async function fetchWithTimeout(
 export interface AnalyzeOptions {
   /** mock 모드에서 어느 샘플을 쓸지: 어르신(느림) vs 청년(빠름). 적응 증명용. */
   mockVariant?: "elder" | "youth";
+  /** mock 모드에서도 실제 Module A /analyze 를 호출해야 하는 녹음 기반 데모 경로. */
+  forceLive?: boolean;
+}
+
+export interface KoreanSeniorProxyAnalyzeResult {
+  korean_text: string;
+  english_proxy_text: string;
+  voice_id: string;
+  age: AnalyzeResult["age"];
+  behavioral: AnalyzeResult["behavioral"];
+  duration_ms: number;
+  audio_base64: string;
 }
 
 /**
@@ -73,14 +114,17 @@ export async function analyze(
   audio: Blob | null,
   opts: AnalyzeOptions = {},
 ): Promise<AnalyzeResult> {
-  if (USE_MOCK) {
+  if (USE_MOCK && !opts.forceLive) {
     await delay(700); // STT+나이 추론 체감
     return opts.mockVariant === "youth"
       ? sampleAnalyzeResultYouth
       : sampleAnalyzeResultElder;
   }
 
-  if (!audio) throw new Error("analyze: audio is empty.");
+  if (!audio) {
+    if (USE_MOCK) return mockKoreanOrderAnalyze(DEFAULT_KOREAN_DEMO_TEXT);
+    throw new Error("analyze: audio is empty.");
+  }
   const form = new FormData();
   const filename = audio.type.includes("wav") ? "audio.wav" : "audio.webm";
   form.append("file", audio, filename);
@@ -88,13 +132,123 @@ export async function analyze(
   const headers: Record<string, string> = {};
   if (ANALYZE_API_KEY) headers["Authorization"] = `Bearer ${ANALYZE_API_KEY}`;
 
-  const res = await fetchWithTimeout(`${ANALYZE_URL}/analyze`, {
-    method: "POST",
-    body: form,
-    headers,
-  });
-  if (!res.ok) throw new Error(`analyze failed: ${res.status}`);
-  return (await res.json()) as AnalyzeResult;
+  try {
+    const res = await fetchWithTimeout(`${ANALYZE_URL}/analyze`, {
+      method: "POST",
+      body: form,
+      headers,
+    });
+    if (!res.ok) throw new Error(`analyze failed: ${res.status}`);
+    return (await res.json()) as AnalyzeResult;
+  } catch (error) {
+    if (USE_MOCK && opts.forceLive) return mockKoreanOrderAnalyze(DEFAULT_KOREAN_DEMO_TEXT);
+    throw error;
+  }
+}
+
+export async function analyzeKoreanSeniorProxy(
+  text: string = DEFAULT_KOREAN_DEMO_TEXT,
+  voiceChoice: KoreanProxyVoiceChoice = "voice-1",
+): Promise<KoreanSeniorProxyAnalyzeResult> {
+  const voice = KOREAN_PROXY_VOICES.find((candidate) => candidate.id === voiceChoice) ?? KOREAN_PROXY_VOICES[0];
+  const body = { text, gender: voice.gender, voice_id: voice.voiceId };
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (ANALYZE_API_KEY) headers["Authorization"] = `Bearer ${ANALYZE_API_KEY}`;
+
+  if (USE_MOCK) {
+    try {
+      const res = await fetchWithTimeout(
+        `${ANALYZE_URL}/demo/korean-senior-proxy/analyze`,
+        {
+          method: "POST",
+          headers,
+          body: JSON.stringify(body),
+        },
+        1800,
+      );
+      if (res.ok) return (await res.json()) as KoreanSeniorProxyAnalyzeResult;
+    } catch {
+      // Mock mode must keep the browser demo runnable without Module A or ElevenLabs.
+    }
+    await delay(450);
+    return mockKoreanSeniorProxy(text, voice);
+  }
+
+  const res = await fetchWithTimeout(
+    `${ANALYZE_URL}/demo/korean-senior-proxy/analyze`,
+    {
+      method: "POST",
+      headers,
+      body: JSON.stringify(body),
+    },
+    30000,
+  );
+  if (!res.ok) throw new Error(`korean senior proxy analyze failed: ${res.status}`);
+  return (await res.json()) as KoreanSeniorProxyAnalyzeResult;
+}
+
+export function proxyAnalyzeToAnalyzeResult(
+  proxy: KoreanSeniorProxyAnalyzeResult,
+): AnalyzeResult {
+  return {
+    transcript: proxy.english_proxy_text,
+    language: "en",
+    age: proxy.age,
+    behavioral: proxy.behavioral,
+    duration_ms: proxy.duration_ms,
+  };
+}
+
+function mockKoreanSeniorProxy(
+  text: string,
+  voice: (typeof KOREAN_PROXY_VOICES)[number] = KOREAN_PROXY_VOICES[0],
+): KoreanSeniorProxyAnalyzeResult {
+  const english = mockEnglishOrderProxy(text);
+  return {
+    korean_text: text,
+    english_proxy_text: english,
+    voice_id: voice.voiceId,
+    age: {
+      group: "senior_adult" as AgeGroup,
+      years_est: 76.3,
+      confidence: 0.91,
+      child_prob: 0,
+    },
+    behavioral: {
+      speech_rate: 2.1,
+      silence_ratio: 0.18,
+      filler_count: 0,
+      assist_level: 2,
+    },
+    duration_ms: 340,
+    audio_base64: "",
+  };
+}
+
+function mockKoreanOrderAnalyze(text: string): AnalyzeResult {
+  return {
+    ...sampleAnalyzeResultElder,
+    transcript: text,
+    language: "ko",
+  };
+}
+
+function mockEnglishOrderProxy(text: string): string {
+  const normalized = text.replace(/\s+/g, "").toLowerCase();
+  let drink = "latte";
+  if (normalized.includes("바닐라") || normalized.includes("vanilla")) drink = "vanilla latte";
+  else if (normalized.includes("아메리카노") || normalized.includes("americano")) drink = "americano";
+
+  const modifiers: string[] = [];
+  if (normalized.includes("아이스") || normalized.includes("ice")) modifiers.push("iced");
+  if (normalized.includes("큰") || normalized.includes("라지") || normalized.includes("large")) modifiers.push("large");
+  const item = [...modifiers, drink].join(" ");
+  const article = /^[aeiou]/i.test(item) ? "an" : "a";
+  const fulfillment =
+    normalized.includes("포장") || normalized.includes("테이크아웃") || normalized.includes("takeout")
+      ? " to go"
+      : "";
+  return `I would like ${article} ${item}${fulfillment}, please.`;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -119,7 +273,7 @@ export async function searchMenu(q: string): Promise<MenuItem[]> {
     const tokens = q
       .toLowerCase()
       .split(/[^a-z0-9]+/i)
-      .filter((token) => token.length >= 3);
+      .filter((token) => token.length >= 3 && !["can", "get", "please", "want", "like"].includes(token));
     const hit = sampleMenu.items.filter(
       (it) => {
         const haystack = norm(`${it.name} ${it.desc} ${it.category}`);
@@ -162,11 +316,21 @@ function computeMockTotal(req: OrderRequest): number {
     for (const [type, label] of Object.entries(line.options)) {
       const opt = item.options.find((o) => o.type === type);
       const choice = opt?.choices.find((c) => c.label === label);
-      if (choice) unit += choice.price_delta;
+      if (choice) {
+        unit += choice.price_delta;
+      } else {
+        unit += optionalUpgradeDelta(type, label);
+      }
     }
     total += unit * (line.qty || 1);
   }
   return total;
+}
+
+function optionalUpgradeDelta(type: string, label: string): number {
+  return OPTIONAL_UPGRADES.find(
+    (upgrade) => upgrade.type === type && upgrade.label === label,
+  )?.priceDelta ?? 0;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -196,6 +360,8 @@ export async function generateUI(
         _age_group: req.age_group,
         _transcript: req.transcript,
         _candidates: req.menu_context.map((m) => m.id),
+        _order_state: req.order_state,
+        _possible_actions: req.possible_actions ?? [],
       },
     };
   }
@@ -210,7 +376,64 @@ export async function generateUI(
     20000, // LLM 생성은 더 긴 타임아웃
   );
   if (!res.ok) throw new Error(`generate-ui failed: ${res.status}`);
-  return (await res.json()) as GenerateUIResponse;
+  const renderPath = res.headers.get("X-GGUI-Path") || "unknown";
+  const data = (await res.json()) as GenerateUIResponse;
+  const contract = {
+    ...(data.contract || {}),
+    _render_path: renderPath,
+  };
+  return {
+    ...data,
+    // LOCAL HTML posts iframe actions, but this React app already has a reliable
+    // orchestrator. Use the built-in renderer for LOCAL paths so recommend →
+    // options → confirm stays interactive.
+    embed_url: renderPath.startsWith("local") ? "" : data.embed_url,
+    contract,
+  };
+}
+
+export async function groundIntent(
+  req: GroundIntentRequest,
+): Promise<GroundIntentResponse> {
+  const res = await fetchWithTimeout(
+    `${GGUI_URL}/ground-intent`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(req),
+    },
+    12000,
+  );
+  if (!res.ok) throw new Error(`ground-intent failed: ${res.status}`);
+  return (await res.json()) as GroundIntentResponse;
+}
+
+export interface GguiConsumedEvent {
+  type?: string;
+  renderId?: string;
+  intent?: string;
+  actionData?: any;
+  uiContext?: Record<string, any>;
+  actionId?: string;
+  firedAt?: string;
+}
+
+export async function consumeGguiEvents(
+  renderId: string,
+  timeoutSeconds = 15,
+): Promise<{ events: GguiConsumedEvent[]; status: string }> {
+  const timeout = Math.max(0, Math.min(120, Math.round(timeoutSeconds)));
+  const res = await fetchWithTimeout(
+    `${GGUI_URL}/consume/${encodeURIComponent(renderId)}?timeout=${timeout}`,
+    { method: "GET" },
+    (timeout + 5) * 1000,
+  );
+  if (!res.ok) throw new Error(`consume failed: ${res.status}`);
+  const data = (await res.json()) as { events?: GguiConsumedEvent[]; status?: string };
+  return {
+    events: Array.isArray(data.events) ? data.events : [],
+    status: data.status || "unknown",
+  };
 }
 
 // 진단/배지 표시용 현재 설정 노출

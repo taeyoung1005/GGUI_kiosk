@@ -9,11 +9,12 @@
 //
 // 사용자 액션은 orchestrator 에 위임한다(selectMenu / setOption / confirmOptions / placeOrder).
 
-import { useEffect, useMemo, useState } from "react";
-import type { MenuItem } from "@contracts/types";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { MenuItem, PaymentMethod } from "@contracts/types";
 import type { FlowState, Orchestrator } from "../flow/orchestrator";
-import { USE_MOCK, menuAssetUrl } from "../api/client";
-import { artFor, emojiFor, won } from "./emoji";
+import { USE_MOCK, consumeGguiEvents, menuAssetUrl } from "../api/client";
+import { emojiFor, won } from "./emoji";
+import { KIOSK_PROGRESS_STEPS } from "./kioskProgress";
 
 export interface AdaptiveKioskProps {
   flow: Orchestrator;
@@ -21,8 +22,78 @@ export interface AdaptiveKioskProps {
 }
 
 export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
-  const assist = state.analyze?.behavioral.assist_level ?? 0;
+  const assist = effectiveAssistLevel(state);
   const embedUrl = state.generated?.embed_url || "";
+  const ggui = state.generated?.contract?._ggui;
+  const gguiHtml = typeof ggui?.html === "string" ? ggui.html : "";
+  const gguiMeta = ggui?.meta && typeof ggui.meta === "object" ? ggui.meta : null;
+  const gguiRenderId =
+    typeof gguiMeta?.["ai.ggui/render"]?.renderId === "string"
+      ? gguiMeta["ai.ggui/render"].renderId
+      : state.generated?.render_id || "";
+  const [embedTimedOut, setEmbedTimedOut] = useState(false);
+
+  useEffect(() => {
+    setEmbedTimedOut(false);
+    if (state.phase !== "adaptive" || (!embedUrl && !gguiHtml)) return;
+    if (gguiHtml) return;
+    const id = window.setTimeout(() => setEmbedTimedOut(true), 3500);
+    return () => window.clearTimeout(id);
+  }, [embedUrl, gguiHtml, state.phase, state.step]);
+
+  const handleAction = useCallback(
+    (action: string, data: any) => {
+      void routeAdaptiveAction(flow, state, action, data);
+    },
+    [flow, state],
+  );
+
+  useEffect(() => {
+    const onMessage = (event: MessageEvent) => {
+      const msg = event.data;
+      if (!msg || msg.source !== "ggui-local" || msg.type !== "action") return;
+      const data = msg.data || {};
+      handleAction(msg.action, data);
+    };
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [handleAction]);
+
+  useEffect(() => {
+    // Voice flow owns state transitions in this demo. Some generated GGUI apps can
+    // emit queued/default events through consume(), so keep live GGUI as a renderer
+    // unless a future contract explicitly enables remote action consumption.
+    if (
+      state.phase !== "adaptive" ||
+      !gguiRenderId ||
+      !gguiHtml ||
+      state.generated?.contract?._enable_ggui_events !== true
+    ) {
+      return;
+    }
+    let cancelled = false;
+    const seen = new Set<string>();
+    const poll = async () => {
+      while (!cancelled) {
+        try {
+          const out = await consumeGguiEvents(gguiRenderId, 15);
+          if (cancelled) return;
+          for (const event of out.events) {
+            const key = event.actionId || `${event.intent}:${event.firedAt || ""}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            if (event.intent) handleAction(event.intent, event.actionData ?? {});
+          }
+        } catch {
+          if (!cancelled) await wait(1000);
+        }
+      }
+    };
+    void poll();
+    return () => {
+      cancelled = true;
+    };
+  }, [gguiHtml, gguiRenderId, handleAction, state.phase]);
 
   // ── 진행/완료/오류 오버레이 ──────────────────────────────
   if (
@@ -35,9 +106,6 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
       <div className="overlay">
         <div className="spinner" />
         <div className="big">{state.message}</div>
-        {state.analyze && (
-          <SignalStrip state={state} />
-        )}
       </div>
     );
   }
@@ -80,13 +148,11 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
 
   // ── adaptive 단계: embed_url 우선, 없으면 내장 렌더러 ──────
   if (state.phase === "adaptive") {
+    const useEmbed = Boolean((embedUrl || gguiHtml) && !embedTimedOut);
     return (
       <div className="adaptive" data-assist={assist}>
-        <GenBanner state={state} />
-        {state.analyze && <SignalStrip state={state} />}
-
-        {embedUrl ? (
-          <GGUIEmbedFrame url={embedUrl} />
+        {useEmbed ? (
+          <GGUIEmbedFrame url={embedUrl} html={gguiHtml} meta={gguiMeta} />
         ) : (
           <BuiltInAdaptive flow={flow} state={state} />
         )}
@@ -106,32 +172,61 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
 // ────────────────────────────────────────────────────────────
 // GGUI 임베드: @ggui-ai/react 가 있으면 사용, 없으면 iframe.
 // ────────────────────────────────────────────────────────────
-function GGUIEmbedFrame({ url }: { url: string }) {
-  const [GGUIComp, setGGUIComp] = useState<any>(null);
-  const [tried, setTried] = useState(false);
+function GGUIEmbedFrame({
+  url,
+  html,
+  meta,
+}: {
+  url: string;
+  html?: string;
+  meta?: Record<string, any> | null;
+}) {
+  const iframeRef = useRef<HTMLIFrameElement>(null);
 
-  useEffect(() => {
-    let alive = true;
-    // optionalDependency — 미설치면 import 실패 → iframe 폴백.
-    import("@ggui-ai/react")
-      .then((m: any) => {
-        if (!alive) return;
-        const Comp = m.GGUIEmbed || m.default || null;
-        setGGUIComp(() => Comp);
-      })
-      .catch(() => {})
-      .finally(() => alive && setTried(true));
-    return () => {
-      alive = false;
+  useLayoutEffect(() => {
+    if (!html || !meta) return;
+    const onMessage = (event: MessageEvent) => {
+      const iframe = iframeRef.current;
+      if (!iframe || event.source !== iframe.contentWindow) return;
+      const data = event.data;
+      if (!data || data.jsonrpc !== "2.0" || data.method !== "ui/initialize") return;
+      const source = event.source;
+      if (source && "postMessage" in source) {
+        source.postMessage(
+          {
+            jsonrpc: "2.0",
+            id: data.id,
+            result: {
+              protocolVersion: "2026-01-26",
+              hostInfo: { name: "oba-module-d", version: "0.1.0" },
+              hostCapabilities: {},
+              hostContext: {
+                availableDisplayModes: ["inline"],
+                currentDisplayMode: "inline",
+              },
+              toolOutput: { _meta: meta },
+            },
+          },
+          "*",
+        );
+      }
     };
-  }, [url]);
+    window.addEventListener("message", onMessage);
+    return () => window.removeEventListener("message", onMessage);
+  }, [html, meta]);
 
-  if (GGUIComp) {
-    // @ggui-ai/react 의 실제 prop 형태는 런타임에 위임. url/src 둘 다 넘긴다.
-    return <GGUIComp url={url} src={url} embedUrl={url} />;
+  if (html) {
+    return (
+      <iframe
+        ref={iframeRef}
+        className="embed-frame"
+        srcDoc={html}
+        title="GGUI adaptive UI"
+        sandbox="allow-scripts"
+      />
+    );
   }
-  // 아직 시도 중이면 iframe 으로 먼저 보여줘도 무방
-  void tried;
+
   return (
     <iframe
       className="embed-frame"
@@ -140,6 +235,41 @@ function GGUIEmbedFrame({ url }: { url: string }) {
       sandbox="allow-scripts allow-same-origin allow-forms"
     />
   );
+}
+
+async function routeAdaptiveAction(
+  flow: Orchestrator,
+  state: FlowState,
+  action: string,
+  data: any,
+) {
+  if (action === "selectMenu") {
+    const itemId = data?.item_id ?? data?.id ?? data?.itemId;
+    const item = state.candidates.find((it) => it.id === itemId);
+    if (item) await flow.selectMenu(item);
+  } else if (action === "selectOption") {
+    flow.setOption(String(data?.type || ""), String(data?.label || data?.value || ""));
+  } else if (action === "setFulfillment") {
+    await flow.setFulfillment(data?.value === "Dine In" ? "Dine In" : "Take Out");
+  } else if (action === "setLoyalty") {
+    const value = data?.value === "scan" || data?.value === "phone" ? data.value : "none";
+    await flow.setLoyalty(value);
+  } else if (action === "setPayment") {
+    const method = String(data?.value || "Credit Card") as PaymentMethod;
+    await flow.setPaymentMethod(method);
+  } else if (action === "back") {
+    await flow.backToRecommendations();
+  } else if (action === "confirmOptions") {
+    await flow.confirmOptions();
+  } else if (action === "confirmYes") {
+    await flow.placeOrder();
+  } else if (action === "confirmNo") {
+    await flow.backToOptions();
+  }
+}
+
+function wait(ms: number): Promise<void> {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
 }
 
 // ────────────────────────────────────────────────────────────
@@ -152,40 +282,103 @@ function BuiltInAdaptive({
   flow: Orchestrator;
   state: FlowState;
 }) {
+  const mode = adaptiveMode(state);
+  const modeLabel = adaptiveModeLabel(mode);
+  const screenCopy = kioskScreenCopy(state);
+  const stepLabel =
+    state.step === "recommend"
+      ? "Pick"
+      : state.step === "options"
+        ? "Options"
+        : state.step === "fulfillment"
+          ? "Place"
+          : state.step === "loyalty"
+            ? "Points"
+            : state.step === "payment"
+              ? "Payment"
+              : "Review";
+
+  let content = <p className="hint">Preparing your screen...</p>;
   if (state.step === "recommend") {
-    return <RecommendStep flow={flow} state={state} />;
+    content = <RecommendStep flow={flow} state={state} mode={mode} />;
+  } else if (state.step === "options" && state.selectedItem) {
+    content = <OptionsStep flow={flow} state={state} item={state.selectedItem} mode={mode} />;
+  } else if (state.step === "fulfillment" && state.selectedItem) {
+    content = <FulfillmentStep flow={flow} state={state} item={state.selectedItem} mode={mode} />;
+  } else if (state.step === "loyalty" && state.selectedItem) {
+    content = <LoyaltyStep flow={flow} state={state} item={state.selectedItem} mode={mode} />;
+  } else if (state.step === "payment" && state.selectedItem) {
+    content = <PaymentStep flow={flow} state={state} item={state.selectedItem} mode={mode} />;
+  } else if (state.step === "confirm" && state.selectedItem) {
+    content = <ConfirmStep flow={flow} state={state} item={state.selectedItem} mode={mode} />;
   }
-  if (state.step === "options" && state.selectedItem) {
-    return <OptionsStep flow={flow} state={state} item={state.selectedItem} />;
-  }
-  if (state.step === "confirm" && state.selectedItem) {
-    return <ConfirmStep flow={flow} state={state} item={state.selectedItem} />;
-  }
-  return <p className="hint">Preparing your screen...</p>;
+
+  return (
+    <section className={`adaptive-scene age-${mode}`}>
+      <div className="adaptive-head">
+        <div>
+          <div className="mode-pill">{modeLabel}</div>
+          <h2>{stepLabel}</h2>
+          <p>{screenCopy}</p>
+        </div>
+        <div className="step-rail" aria-label="Order progress">
+          {KIOSK_PROGRESS_STEPS.map((step, index) => (
+            <span key={step.key} className={state.step === step.key ? "active" : ""} title={step.label}>
+              {index + 1}
+            </span>
+          ))}
+        </div>
+      </div>
+      <div className="adaptive-layout">
+        <main className="adaptive-main">{content}</main>
+        {mode !== "express" && (
+          <aside className="care-panel">
+            <div className="care-kicker">Voice assistant</div>
+            <strong>{carePanelCopy(state)}</strong>
+            <span>{mode === "guided" ? "Two large choices first." : "Fast choices stay visible."}</span>
+          </aside>
+        )}
+      </div>
+    </section>
+  );
 }
 
-function RecommendStep({ flow, state }: { flow: Orchestrator; state: FlowState }) {
-  const cands = state.candidates.slice(0, 3); // 큰 카드 2~3장
+function RecommendStep({
+  flow,
+  state,
+  mode,
+}: {
+  flow: Orchestrator;
+  state: FlowState;
+  mode: AdaptiveMode;
+}) {
+  const cands = state.candidates.slice(0, cardCountForState(state)); // 큰 카드 2~3장
+  const showDetails = mode !== "guided";
   return (
     <div>
       <div className="question">
-        Which menu item would you like?
+        {mode === "guided" ? "Choose one large card." : "Which menu item would you like?"}
       </div>
-      <div className="big-cards">
-        {cands.map((it) => (
+      <div className={`big-cards cards-${mode}`}>
+        {cands.map((it, index) => (
           <button
             key={it.id}
-            className="big-card"
+            className={`big-card ${index === 0 ? "primary" : "secondary"}`}
             onClick={() => flow.selectMenu(it)}
           >
+            <span className="rank-pill">{rankLabel(index, mode)}</span>
             <img
               className="big-art"
-              src={USE_MOCK ? artFor(it) : menuAssetUrl(it.image_url)}
+              src={USE_MOCK ? it.image_url : menuAssetUrl(it.image_url)}
               alt=""
               aria-hidden="true"
             />
-            <div className="b-name">{it.name}</div>
-            <div className="b-price">{won(it.price)}</div>
+            <div className="b-copy">
+              <div className="b-name">{it.name}</div>
+              <div className="b-price">{won(it.price)}</div>
+              {showDetails && <p>{it.desc || it.category}</p>}
+            </div>
+            <div className="card-action">Choose</div>
           </button>
         ))}
       </div>
@@ -198,10 +391,12 @@ function OptionsStep({
   flow,
   state,
   item,
+  mode,
 }: {
   flow: Orchestrator;
   state: FlowState;
   item: MenuItem;
+  mode: AdaptiveMode;
 }) {
   const cur = useMemo(
     () => unitTotal(item, state.selectedOptions),
@@ -210,7 +405,7 @@ function OptionsStep({
   return (
     <div>
       <div className="question">
-        {emojiFor(item)} {item.name} - Choose your options
+        {emojiFor(item)} {mode === "guided" ? `${item.name} options` : `${item.name} - Choose your options`}
       </div>
 
       {item.options.map((opt) => (
@@ -242,12 +437,119 @@ function OptionsStep({
       </div>
 
       <div className="yesno">
-        <button className="btn-no" onClick={() => flow.reset(false)}>
+        <button className="btn-no" onClick={() => flow.backToRecommendations()}>
           Choose Again
         </button>
         <button className="btn-yes" onClick={() => flow.confirmOptions()}>
-          This Looks Good
+          Continue
         </button>
+      </div>
+      <MultiTurnBar flow={flow} />
+    </div>
+  );
+}
+
+function FulfillmentStep({
+  flow,
+  state,
+  item,
+  mode,
+}: {
+  flow: Orchestrator;
+  state: FlowState;
+  item: MenuItem;
+  mode: AdaptiveMode;
+}) {
+  return (
+    <div>
+      <div className="question">
+        {mode === "guided" ? "Eat here or take out?" : `Where should we prepare ${item.name}?`}
+      </div>
+      <p className="voice-affordance">You can say "take out" or tap one.</p>
+      <div className="yesno">
+        <button
+          className={"choice-tile" + (state.orderState.fulfillment === "Dine In" ? " selected" : "")}
+          onClick={() => flow.setFulfillment("Dine In")}
+        >
+          <strong>Dine In</strong>
+          <span>Eat at the store</span>
+        </button>
+        <button
+          className={"choice-tile" + (state.orderState.fulfillment === "Take Out" ? " selected" : "")}
+          onClick={() => flow.setFulfillment("Take Out")}
+        >
+          <strong>Take Out</strong>
+          <span>Pack to go</span>
+        </button>
+      </div>
+      <MultiTurnBar flow={flow} />
+    </div>
+  );
+}
+
+function LoyaltyStep({
+  flow,
+  state,
+  mode,
+}: {
+  flow: Orchestrator;
+  state: FlowState;
+  item: MenuItem;
+  mode: AdaptiveMode;
+}) {
+  return (
+    <div>
+      <div className="question">
+        {mode === "guided" ? "Coupons or points?" : "Do you want to use coupons or earn points?"}
+      </div>
+      <p className="voice-affordance">You can say "skip points", "coupon", or "earn points".</p>
+      <div className="adaptive-choice-grid">
+        <button className={"choice-tile" + (state.orderState.loyalty === "scan" ? " selected" : "")} onClick={() => flow.setLoyalty("scan")}>
+          <strong>App Coupon</strong>
+          <span>Scan QR code</span>
+        </button>
+        <button className={"choice-tile" + (state.orderState.loyalty === "phone" ? " selected" : "")} onClick={() => flow.setLoyalty("phone")}>
+          <strong>Earn Points</strong>
+          <span>Use phone number</span>
+        </button>
+        <button className={"choice-tile" + (state.orderState.loyalty === "none" ? " selected" : "")} onClick={() => flow.setLoyalty("none")}>
+          <strong>Skip</strong>
+          <span>No coupon or points</span>
+        </button>
+      </div>
+      <MultiTurnBar flow={flow} />
+    </div>
+  );
+}
+
+function PaymentStep({
+  flow,
+  state,
+  mode,
+}: {
+  flow: Orchestrator;
+  state: FlowState;
+  item: MenuItem;
+  mode: AdaptiveMode;
+}) {
+  const methods: PaymentMethod[] = ["Credit Card", "Gift Card", "Kakao Pay", "Naver Pay", "Pay at Counter"];
+  return (
+    <div>
+      <div className="question">
+        {mode === "guided" ? "How will you pay?" : "Choose a payment method"}
+      </div>
+      <p className="voice-affordance">You can say "card", "Kakao Pay", or tap one.</p>
+      <div className="adaptive-choice-grid">
+        {methods.map((method) => (
+          <button
+            key={method}
+            className={"choice-tile" + (state.orderState.payment_method === method ? " selected" : "")}
+            onClick={() => flow.setPaymentMethod(method)}
+          >
+            <strong>{method}</strong>
+            <span>{method === "Credit Card" ? "Tap or insert card" : "Use selected payment"}</span>
+          </button>
+        ))}
       </div>
       <MultiTurnBar flow={flow} />
     </div>
@@ -258,10 +560,12 @@ function ConfirmStep({
   flow,
   state,
   item,
+  mode,
 }: {
   flow: Orchestrator;
   state: FlowState;
   item: MenuItem;
+  mode: AdaptiveMode;
 }) {
   const cur = unitTotal(item, state.selectedOptions);
   const optText = Object.entries(state.selectedOptions)
@@ -269,7 +573,7 @@ function ConfirmStep({
     .join(" · ");
   return (
     <div>
-      <div className="question">Would you like to order this?</div>
+      <div className="question">{mode === "guided" ? "Ready to pay?" : "Would you like to order this?"}</div>
       <div className="confirm-box">
         <div className="c-line">
           <span>
@@ -285,7 +589,12 @@ function ConfirmStep({
         )}
         <div className="c-total">
           <span>Total</span>
-          <span>{won(cur)}</span>
+          <span>{won(state.orderState.total || cur)}</span>
+        </div>
+        <div className="order-state-line">
+          <span>{state.orderState.fulfillment ?? "Place not selected"}</span>
+          <span>{state.orderState.loyalty === "none" ? "No points" : state.orderState.loyalty ?? "Points not selected"}</span>
+          <span>{state.orderState.payment_method ?? "Payment not selected"}</span>
         </div>
       </div>
 
@@ -302,16 +611,37 @@ function ConfirmStep({
           Yes, Pay
         </button>
       </div>
+      <MultiTurnBar flow={flow} />
     </div>
   );
 }
 
 // 멀티턴(재발화) 막대
 function MultiTurnBar({ flow }: { flow: Orchestrator }) {
+  const [text, setText] = useState("");
+  const submit = () => {
+    const value = text.trim();
+    if (!value) return;
+    setText("");
+    void flow.submitVoiceTurn(value);
+  };
   return (
-    <div style={{ marginTop: 18, display: "flex", gap: 10, flexWrap: "wrap" }}>
+    <div className="multi-turn">
       <button className="mic-btn secondary" onClick={() => flow.respeak()}>
-        🎤 Speak Again
+        Speak Next
+      </button>
+      <input
+        className="voice-turn-input"
+        value={text}
+        onChange={(event) => setText(event.target.value)}
+        onKeyDown={(event) => {
+          if (event.key === "Enter") submit();
+        }}
+        placeholder='Try "vanilla latte", "iced large", "take out", "card"'
+        aria-label="Demo voice turn"
+      />
+      <button className="mic-btn secondary voice-turn-submit" onClick={submit}>
+        Send as Voice
       </button>
       <button className="mic-btn secondary" onClick={() => flow.reset(true)}>
         Start Over
@@ -320,42 +650,56 @@ function MultiTurnBar({ flow }: { flow: Orchestrator }) {
   );
 }
 
-// 분석 신호 표시(데모 핵심: 같은 말이라도 신호가 다르면 화면이 달라진다)
-function SignalStrip({ state }: { state: FlowState }) {
-  const a = state.analyze;
-  if (!a) return null;
-  return (
-    <div className="signal-strip">
-      <span className="sig">
-        Transcript <b>"{a.transcript}"</b>
-      </span>
-      <span className="sig">
-        Age Group <b>{a.age.group}</b>
-      </span>
-      <span className="sig">
-        Speech Rate <b>{a.behavioral.speech_rate.toFixed(1)}</b> syllables/sec
-      </span>
-      <span className="sig">
-        Assist Level <b>assist {a.behavioral.assist_level}</b>
-      </span>
-    </div>
-  );
+function effectiveAssistLevel(state: FlowState): 0 | 1 | 2 | 3 {
+  const raw = state.analyze?.behavioral.assist_level ?? 0;
+  const senior = new Set(["senior_adult", "fifties", "sixties", "seventies_plus"]);
+  if (state.analyze && senior.has(state.analyze.age.group) && raw < 3) {
+    return (raw + 1) as 1 | 2 | 3;
+  }
+  return raw;
 }
 
-function GenBanner({ state }: { state: FlowState }) {
-  const meta = state.generated?.contract;
-  const mock = meta?._mock;
-  return (
-    <div className="gen-banner">
-      * {mock ? "Built-in adaptive renderer (mock)" : "GGUI generated screen"} ·{" "}
-      {state.step === "recommend"
-        ? "Recommendation"
-        : state.step === "options"
-          ? "Options"
-          : "Confirmation"}{" "}
-      step · assist_level {state.analyze?.behavioral.assist_level ?? 0}
-    </div>
-  );
+function cardCountForState(state: FlowState): 2 | 3 {
+  return effectiveAssistLevel(state) >= 3 ? 2 : 3;
+}
+
+type AdaptiveMode = "express" | "comfort" | "guided";
+
+function adaptiveMode(state: FlowState): AdaptiveMode {
+  const assist = effectiveAssistLevel(state);
+  if (assist >= 2) return "guided";
+  if (assist === 1) return "comfort";
+  return "express";
+}
+
+function adaptiveModeLabel(mode: AdaptiveMode): string {
+  if (mode === "guided") return "Easy order mode";
+  if (mode === "comfort") return "Comfort order mode";
+  return "Quick order mode";
+}
+
+function rankLabel(index: number, mode: AdaptiveMode): string {
+  if (index === 0) return mode === "express" ? "Top pick" : "Best match";
+  if (index === 1) return mode === "guided" ? "Easy second choice" : "Alternative";
+  return "Quick option";
+}
+
+function carePanelCopy(state: FlowState): string {
+  if (state.step === "recommend") return "I found the clearest matches for your voice order.";
+  if (state.step === "options") return "Only the needed options are shown here.";
+  if (state.step === "fulfillment") return "Choose whether this order is for here or to go.";
+  if (state.step === "loyalty") return "You can skip points if you do not need them.";
+  if (state.step === "payment") return "No payment is charged until the final confirmation.";
+  return "Check the total, then choose the payment button.";
+}
+
+function kioskScreenCopy(state: FlowState): string {
+  if (state.step === "recommend") return "I found menu items for your order.";
+  if (state.step === "options") return "Choose the options you want.";
+  if (state.step === "fulfillment") return "Choose where to receive your order.";
+  if (state.step === "loyalty") return "Choose coupons, points, or skip.";
+  if (state.step === "payment") return "Choose a payment method.";
+  return "Review your order before payment.";
 }
 
 function unitTotal(item: MenuItem, opts: Record<string, string>): number {

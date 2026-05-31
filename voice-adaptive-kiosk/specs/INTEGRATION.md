@@ -12,7 +12,7 @@
 
 | 모듈 | 포트 | 기동 | 헬스 | 비고 |
 |------|------|------|------|------|
-| A — AI 추론 + ElevenLabs (FastAPI/uvicorn) | **8000** | `MOCK_MODE=1 uvicorn app:app --port 8000` | `GET /health` | mock 기본. CORS `*`. `/demo/*` = ElevenLabs 보이스(구 VOICEGEN 흡수). |
+| A — AI 추론 + ElevenLabs (FastAPI/uvicorn) | **8000** | `uvicorn app:app --port 8000` | `GET /health` | CORS `*`. `/demo/*` = 내부 데모용 ElevenLabs helper API. |
 | B — 메뉴/주문 (Express) | **8001** | `node module-b/server.js` | `GET /health` | 외부 의존 0. mock 결제. |
 | C — GGUI 래퍼 (Express) | **8002** | `GGUI_MODE=local node module-c/server.js` | `GET /health` | **D 가 호출하는 GGUI 엔드포인트는 8002(C 래퍼)** — 6781 아님. |
 | GGUI MCP+뷰어 | **6781** | `npx @ggui-ai/cli serve` | (뷰어 `/r/<code>`) | **C 내부**가 `GGUI_MODE=ggui` 일 때만 호출. OpenAI raw 키 필요. |
@@ -43,14 +43,15 @@ B  GET /menu        → Menu { restaurant, categories, items: MenuItem[] }
   ▼
 C  POST /generate-ui  { transcript, age_group, assist_level, menu_context: MenuItem[], step:"recommend" }
   │ → GenerateUIResponse { render_id, embed_url, contract }
-  │     · GGUI 경로:  embed_url = http://127.0.0.1:6781/r/<code>?sig=…&exp=…   (X-GGUI-Path: ggui)
-  │     · LOCAL 폴백: embed_url = http://localhost:8002/r/<id>                  (X-GGUI-Path: local-fallback)
+  │     · GGUI 경로(메인/목표): embed_url = GGUI 서버가 돌려준 url (예 http://localhost:6781/r/<shortCode>)  (X-GGUI-Path: ggui)
+  │     · LOCAL 폴백:           embed_url = http://localhost:8002/r/<id>                                       (X-GGUI-Path: local-fallback)
   │     · D mock:     embed_url = ""  → D 내장 적응 렌더러
   ▼
 [D · Adaptive]  embed_url 임베드(@ggui-ai/react / iframe / 내장 렌더러)
   │ ② 사용자 액션(큰 카드 선택) → postMessage / ggui_consume → action:"selectMenu" {item_id}
-  ▼  (멀티턴: step=options → confirm 으로 /generate-ui 재호출)
-  │   options: selectOption{type,label} → confirm
+  ▼  (멀티턴: step 을 recommend → options → fulfillment → loyalty → payment → confirm 으로 /generate-ui 재호출)
+  │   recommend: selectMenu{item_id} → options
+  │   options: selectOption{type,label} → fulfillment(Dine In/Take Out) → loyalty(scan/phone/none) → payment(결제수단) → confirm
   │   confirm: confirmYes → 주문 / confirmNo → recommend
   ▼
 B  POST /orders   { items:[{ item_id, options:{<MenuOption.type>:<choice.label>}, qty }] }
@@ -60,8 +61,8 @@ B  POST /orders   { items:[{ item_id, options:{<MenuOption.type>:<choice.label>}
 ```
 
 **적응 증명(데모 핵심):** 같은 발화 `"Can I get a latte"` 라도 행동신호가 다르면 `assist_level` 이 갈린다 →
-- **elder**: `age.group="50+"`, `assist_level=2`(C effective 3) → 큰 글자(30px)·카드 2장·음성안내바.
-- **youth**: `age.group="under50"`, `assist_level=0` → 18px·카드 3장·음성안내 없음·압축.
+- **elder**: `age.group="senior_adult"`, `assist_level=2`(senior 보조 가산으로 한 단계 상향) → 큰 글자(30px)·카드 2장·음성안내바.
+- **youth**: `age.group="young_adult"`, `assist_level=0` → 18px·카드 3장·음성안내 없음·압축.
 
 전 구간 폴백(데모 무중단): A 무응답 → D 일반 UI / C·키·GGUI 미가동 → C LOCAL 폴백 또는 D 내장 렌더러 / C 오류 → D Standard 화면.
 
@@ -73,18 +74,18 @@ B  POST /orders   { items:[{ item_id, options:{<MenuOption.type>:<choice.label>}
 
 ### 2.1 A.AnalyzeResult → D (소비)
 - [ ] `/analyze` 응답이 `AnalyzeResult` 와 자구 일치: `transcript`, `language`, `age{group,years_est,confidence,child_prob}`, `behavioral{speech_rate,silence_ratio,filler_count,assist_level}`, `duration_ms`.
-- [ ] `behavioral.assist_level ∈ {0,1,2,3}`, `age.group ∈ {"50+","under50"}`, 비율 필드 ∈ [0,1].
-- [ ] **★ 나이 라벨 매핑 확인:** A 실코드(`inference/age.py`)는 `age.group` 을 **한국어 decade**(`"10대"…"40대","50+"`, 미준비 시 `"unknown"`)로 반환 → 계약(`"50+"|"under50"`)과 불일치(§5 ④). 통합 시 A 응답 또는 D 소비측에서 decade→이진 매핑.
+- [ ] `behavioral.assist_level ∈ {0,1,2,3}`, `age.group ∈ AgeGroup`(broad taxonomy: `young_adult|adult|senior_adult|child|teens|twenties|thirties|forties|fifties|sixties|seventies_plus|unknown` 12값), 비율 필드 ∈ [0,1].
+- [ ] **★ 나이 라벨 정합 확인:** A 실코드(`inference/age.py` `age_years_to_group()`)는 `age.group` 을 **`young_adult`(<30)/`adult`(≤60)/`senior_adult`(>60)** 세 값(미준비·실패 시 `"unknown"`)으로 반환 → 계약 `AgeGroup` taxonomy 와 그대로 정합. **별도 decade→이진 매핑 불필요.** (`behavioral.py` 는 `senior_adult` 일 때 `assist_level` 을 한 단계 가산하고, korean-senior-proxy 경로에서는 `max(assist_level,2)` 로 올린다.)
 - [ ] D 가 **`assist_level`(주축)·`age.group`(보조)** 로 화면 분기. (A 의 mock 두 변형 elder/youth ↔ D 의 mock 두 변형 일치.)
 
 ### 2.2 B.Menu → C.menu_context / D (소비)
-- [ ] `GET /menu` 응답이 `Menu`(`restaurant`, `categories[]`, `items: MenuItem[]`). 실데이터 = `OBA Cafe`, 항목 **20개**, 라벨 영어.
+- [ ] `GET /menu` 응답이 `Menu`(`restaurant`, `categories[]`, `items: MenuItem[]`). 실데이터 = `OBA Cafe`, 항목 **48개**(latte 변형 10개), 라벨 영어, categories=[Coffee,Latte,Tea,Ade,Beverage,Dessert].
 - [ ] `MenuItem` = `{id,name,category,price,image_url,desc,options[]}`, `options[].choices[]={label,price_delta}`.
 - [ ] **C 의 `menu_context` 는 B 의 `MenuItem[]` 그대로** 재사용(추가 매핑 0). D 가 recommend 단계에 후보 배열을, options/confirm 단계에 선택 1개를 넣는다.
 - [ ] `GET /menu/search?q=` 응답 wrapper = `{ query, count, items: MenuItem[] }` → D/C 는 `.items` 만 추출.
 
 ### 2.3 D → C.GenerateUIRequest → D.GenerateUIResponse
-- [ ] D→C 요청이 `GenerateUIRequest { transcript, age_group, assist_level, menu_context, step }`, `step ∈ {recommend,options,confirm}`.
+- [ ] D→C 요청이 `GenerateUIRequest { transcript, age_group, assist_level, menu_context, step }`, `step ∈ {recommend,options,fulfillment,loyalty,payment,confirm}`(6단계, `module-c/server.js` `allowedSteps` ↔ `contracts/types.ts` `AdaptiveStep` 일치).
 - [ ] C→D 응답이 `GenerateUIResponse { render_id, embed_url, contract }`.
 - [ ] **D 는 `embed_url` 을 있는 그대로 임베드**(host/port 비가정: 8002·6781·"" 모두 처리). `contract`(=`any`)의 구체 키에 강결합 금지.
 - [ ] 멀티턴 action 키 동형성(LOCAL `postMessage` == GGUI `actionSpec`): `selectMenu`/`repeat`(recommend), `selectOption`/`back`(options), `confirmYes`/`confirmNo`(confirm).
@@ -166,10 +167,10 @@ npm run health          # = node scripts/health.mjs
 # B: 문법 + 시드 파싱
 node --check module-b/server.js
 node -e "JSON.parse(require('fs').readFileSync('module-b/data/menu.seed.json','utf8'))"
-# C: LOCAL 3단계 200 (module-c §7)
+# C: LOCAL 6단계(recommend|options|fulfillment|loyalty|payment|confirm) 200 (module-c §7)
 # D: 빌드 게이트 (open-design 산출물 또는 참조 프로토타입)
 npm --prefix module-d run build      # exit 0
-# A: 유닛 테스트 (module-a §7 — 15 tests)
+# A: 유닛 테스트 (module-a §7 참조 — 일부 테스트가 error 상태일 수 있으니 게이트에서 인지)
 cd module-a && PYTHONPATH=. .venv/bin/python -m unittest discover -s tests
 ```
 
@@ -184,15 +185,15 @@ npm run health       # A/B/C/D 전부 ✓
 # A: mock AnalyzeResult (MOCK_MODE=1 이면 multipart 없이도 mock 응답)
 curl -s -X POST http://localhost:8000/analyze | python3 -m json.tool
 
-# B: Menu(items 20) + 검색 + 주문(paid)
+# B: Menu(items 48) + 검색 + 주문(paid)
 curl -s http://localhost:8001/menu | head -c 300
-curl -s "http://localhost:8001/menu/search?q=latte"        # count≥5 (latte 변형)
+curl -s "http://localhost:8001/menu/search?q=latte"        # count=10 (latte 변형)
 curl -s -X POST http://localhost:8001/orders -H 'Content-Type: application/json' \
   -d '{"items":[{"item_id":"caffe-latte-003","options":{"Size":"Large"},"qty":2}]}'  # status:"paid"
 
 # C: recommend → render_id/embed_url/contract (menu_context 는 B 의 /menu items 일부를 그대로)
 curl -s -X POST http://localhost:8002/generate-ui -H 'Content-Type: application/json' -d '{
-  "transcript":"Can I get a latte","age_group":"50+","assist_level":2,
+  "transcript":"Can I get a latte","age_group":"senior_adult","assist_level":2,
   "menu_context":[{"id":"caffe-latte-003","name":"Caffe Latte","category":"Latte","price":4500,"image_url":"","desc":"","options":[{"type":"Temperature","choices":[{"label":"Hot","price_delta":0},{"label":"Iced","price_delta":0}]}]}],
   "step":"recommend"}' -i | grep -i 'X-GGUI-Path'    # local-fallback 또는 ggui
 ```
@@ -212,8 +213,8 @@ curl -s -X POST http://localhost:8002/generate-ui -H 'Content-Type: application/
 ```bash
 # ElevenLabs 키 설정 후 — A 의 /demo/* 가 보이스 생성→analyze 검증을 한 응답에
 curl -X POST http://localhost:8000/demo/generate-and-analyze \
-  -H 'content-type: application/json' -d '{"age_group":"50+","target_decade":"60대","language":"en","seed":7}'
-# ※ 합성음 나이 정확도는 낮음(배치 7/100, §5 ⑥) — "행동신호가 주축, 나이는 보조" 메시지 유지.
+  -H 'content-type: application/json' -d '{"age_group":"senior_adult","language":"en","seed":7}'
+# ※ 합성음 나이 추정 정확도는 보장되지 않음(§5 ⑥) — "행동신호(assist_level)가 주축, 나이(age)는 보조" 메시지 유지.
 ```
 
 ---
@@ -226,10 +227,10 @@ curl -X POST http://localhost:8000/demo/generate-and-analyze \
 |---|------|--------------------------|------------|
 | **①** | **module-a 정본 경로 = 루트 심링크?** (가정) | **거짓.** 루트 `/OBA_Weekenthon/module-a` 는 **존재하지 않음.** `voice-adaptive-kiosk/module-a` 는 **실제 디렉토리**(git 추적 20파일, mode 100644 — 120000 심링크 아님). `MODULE_A.md` §6/§9 의 "심링크(`module-a -> ../module-a`)" 서술은 **현 트리와 불일치(stale)**. | **정정·플래그.** 정본 = `voice-adaptive-kiosk/module-a`(실 디렉토리) 하나뿐. 별도 루트 카피 없음 → **중복/심링크 이슈 자체가 부재**. `MODULE_A.md` 의 심링크 문구는 다음 갱신 때 정정 대상(이번 세션 Write 범위 밖이라 기록만). A 작업·기동은 `voice-adaptive-kiosk/module-a` 에서. |
 | **②** | **contracts 중복 (루트 vs kiosk)?** (가정) | **거짓(현재).** `find` 결과 repo 내 contracts 디렉토리는 **`voice-adaptive-kiosk/contracts` 단 하나**. 루트 `/OBA_Weekenthon/contracts` 없음. 정본 4파일(`types.ts`/`schemas.py`/`mocks.json`/`mocks.ts`)도 이 한 곳에만. | **미해결 플래그 → 실제로는 중복 없음.** 단일 SSoT 유지됨. 만약 향후 루트에 사본이 생기면 즉시 제거하고 `voice-adaptive-kiosk/contracts` 만 정본으로 둔다(드리프트 방지). 현시점 조치 불필요. |
-| **③** | **module-c GGUI 호출 순서/툴명 버그** (현재 미수정 — ★결선 핵심) | `GGUI_MODE=ggui` 인데 매번 `X-GGUI-Path: local-fallback` — GGUI 실연결 0회. 라이브 MCP 덤프로 확인된 3버그: `ggui_new_session` 누락 / 존재 않는 `ggui_render` 호출 / 응답키 오독. | `module-c/src/ggui-client.js` 를 라이브 검증된 순서로 수정: ① `ggui_new_session({})`→`sessionId`, ② `ggui_handshake({sessionId,…})`(sessionId **required**), ③ **`ggui_push`**(`ggui_render` 아님) → `embed_url = result.url`·`render_id = result.stackItemId`. 멀티턴 수신은 `ggui_consume({stackItemId})`. (`MODULE_C.md` §9 매핑표.) 미수정이어도 LOCAL 폴백으로 데모는 돈다. |
-| **④** | **나이 라벨 한/영 혼재 + 옵션 라벨 mock id 혼재** | A 코드는 `age.group` 을 **한국어 decade**(`"10대"…"50+"`, 미준비 시 `"unknown"`) 반환 ↔ 계약은 `"50+"|"under50"`. C 격리 mock 명세는 한글 메뉴(`카페라떼`,`온도`,`latte-001`)인데 B 실데이터는 영어(`Caffe Latte`,`Temperature`,`caffe-latte-003`). | (a) **나이:** A 응답 또는 D 소비측에서 decade→이진 매핑(`"50+"`→`"50+"`, 그 외/`"unknown"`→`"under50"`). 데모는 `MOCK_MODE=1` 권장(이미 `"50+"|"under50"`·영어). (b) **옵션/ id:** live 결선 후엔 **mock id·한글 라벨 금지** — 항상 B `/menu` 의 실제 영어 `items[].id`·`MenuOption.type`/`choice.label`(Temperature/Size, Hot/Iced/Regular/Large) 사용. 불일치 시 B 가 0 가산으로 조용히 무시 → total 만 틀어짐(★검증). |
-| **⑤** | **STT off → 행동신호 무력화** | A 기본 `STT_MODEL=small`(transcript 채움) 이지만, ElevenLabs 데모 권장 실행은 `STT_MODEL=none`(NoopSTT) → transcript 빈값 → `speech_rate`/`filler_count`(텍스트 기반)이 사실상 무의미, 나이 보조 가산만 남음. | 데모 시나리오별 env 고정: **행동신호 시연 = `STT_MODEL=small`**, 보이스 생성 위주 = `none`. 통합 데모는 `MOCK_MODE=1`(고정 elder/youth 신호)로 안정 시연 + "assist_level 이 주축" 메시지 유지. |
-| **⑥** | **합성(TTS) 음성 나이 정확도 약함** | module-a 배치 평가(en 100건) **exact decade match 7/100**, 전 구간 ~40~55세 수렴 → 합성음 연령 구분 거의 못 함. | 합성음 나이 추정은 **데모 시연용일 뿐 정확도 보장 안 함.** 발표/UI 에서 "**행동신호(assist_level)가 적응 주축, 나이(age)는 보조**" 메시지 일관 유지. 실연령 신뢰 지표로 쓰지 말 것. (계정 보이스로 `ELEVENLABS_AGE_VOICE_MAP_JSON` override 시 인상 개선 가능.) |
+| **③** | **GGUI 라이브 경로 = 메인/목표, 현재 `codeReady=false` 블로커로 LOCAL 폴백 중** (★결선 핵심) | `module-c/src/ggui-client.js` 의 GGUI 호출 순서/툴명 3버그(`ggui_new_session` 누락 / 잘못된 render 호출 / 응답키 오독)는 **이미 수정됨.** 현재 코드는 ① `ggui_new_session({})`(구버전 전용·없으면 skip), ② `ggui_handshake(...)`→`handshakeId`, ③ **`ggui_render`(alpha) 우선 호출, tool-not-found 면 `ggui_push`(legacy) 폴백** → `normalizeGguiPushResult` 가 `embed_url = result.url`·`render_id = result.stackItemId` 로 정규화하는 순서다. 남은 단일 블로커는 GGUI 서버가 `codeReady=false` 를 돌려줘 정규화가 거부되는 것(line 314)뿐이다. | **GGUI 라이브가 데모 메인/목표 경로.** `codeReady=true` 가 되면 `X-GGUI-Path: ggui` 로 실연결 완주. 블로커 동안에는 C 가 자동으로 LOCAL 폴백(`X-GGUI-Path: local-fallback`)으로 데모를 무중단 보장한다(임시 폴백 — 설계 목표는 GGUI 라이브 복구). 멀티턴 수신은 `ggui_consume({stackItemId})`. (`MODULE_C.md` §9 매핑표.) |
+| **④** | **나이 라벨(코드↔계약 정합) + 옵션 라벨 mock id 혼재** | A 코드(`age.py`)는 `age.group` 을 **`young_adult`/`adult`/`senior_adult`**(미준비·실패 시 `"unknown"`)로 반환하며 계약 `AgeGroup`(12값 broad taxonomy)와 **정합** — 한국어 decade도 `"50+"|"under50"` 이진 라벨도 코드/계약 어느 쪽에도 없다. C 격리 mock 명세는 한글 메뉴(`카페라떼`,`온도`,`latte-001`)인데 B 실데이터는 영어(`Caffe Latte`,`Temperature`,`caffe-latte-003`). | (a) **나이:** `age.py` 는 `young_adult`/`adult`/`senior_adult` 를 반환하여 계약 taxonomy 와 정합 → **decade/이진 매핑 불필요.** `behavioral.py` 는 `senior_adult`/`50대`/`60대 이상`/`elder` 등 여러 별칭을 모두 senior 로 처리해 `assist_level` 을 가산한다(견고). (b) **옵션/ id:** live 결선 후엔 **mock id·한글 라벨 금지** — 항상 B `/menu` 의 실제 영어 `items[].id`·`MenuOption.type`/`choice.label`(Temperature/Size, Hot/Iced/Regular/Large) 사용. 불일치 시 B 가 0 가산으로 조용히 무시 → total 만 틀어짐(★검증). |
+| **⑤** | **STT off → 행동신호 무력화** | A 기본 `STT_MODEL=whisper-1`(OpenAI Whisper API, transcript 채움 — 루트·`module-a/.env.example` 모두 `whisper-1`) 이지만, `STT_MODEL ∈ {'','none','noop','off','disabled'}` 이면 `NoopSTT` → transcript 빈값 → `speech_rate`/`filler_count`(텍스트 기반)이 사실상 무의미, 나이 보조 가산만 남음. (`'small'`/`local:small` 은 명시 시의 faster-whisper 로컬 보조 경로일 뿐 런타임 기본 아님.) | 데모 시나리오별 env 고정: **행동신호 시연 = `STT_MODEL=whisper-1`(기본) 또는 로컬 검증 `STT_MODEL=local:small`**, STT 무력화 검증 = `STT_MODEL=none`. 통합 데모는 D 의 `VITE_USE_MOCK`(고정 elder/youth 신호)로 안정 시연 + "assist_level 이 주축" 메시지 유지. |
+| **⑥** | **합성(TTS) 음성 나이 정확도 약함** | 과거 배치 평가는 합성음 연령 구분이 거의 안 됨을 보였으나, 그 산출 스크립트(`scripts/age_demo_batch.py`·`scripts/fairspeech_eval.py`)와 `/demo/batch-summary` 엔드포인트는 현재 제거됨(재현 불가). 또한 `age.py` 는 decade 가 아니라 `young_adult`/`adult`/`senior_adult` 를 산출하므로 옛 'decade match' 수치는 더 이상 코드로 재현되지 않는다. | 합성음 나이 추정은 **데모 시연용일 뿐 정확도 보장 안 함.** 발표/UI 에서 "**행동신호(assist_level)가 적응 주축, 나이(age)는 보조**" 메시지 일관 유지. 실연령 신뢰 지표로 쓰지 말 것. (계정 보이스로 `ELEVENLABS_AGE_VOICE_MAP_JSON` override 시 인상 개선 가능.) |
 
 ### (참고) 그 밖의 잔여 정합 포인트
 - **C URL 혼동(8002 vs 6781):** D 의 `VITE_GGUI_URL=http://localhost:8002`(C 래퍼) 고정. 6781 은 C 내부 전용. D 는 `embed_url` 을 있는 그대로 임베드(host/port 비가정).
@@ -244,7 +245,7 @@ curl -X POST http://localhost:8000/demo/generate-and-analyze \
 - [ ] §2 계약 정합 체크리스트 전 항목 ✓ (A→D, B→C·D, D→C→D, D→B). 특히 §2.1 나이 매핑(④)·§2.4 옵션 라벨 정합.
 - [ ] §4 단계 3(브라우저 골든 플로우) live 완주 + **적응 대조**(elder vs youth) 시연.
 - [ ] §4 단계 4 폴백 회귀(A/C 다운 시 데모 무중단).
-- [ ] (가능 시) C **GGUI 실연결 1회**(③ 수정 후 `X-GGUI-Path: ggui`, `embed_url`=`:6781/r/...`). 미수정이면 LOCAL 폴백으로 데모 보장 + 이슈 ③ 로 잔여 작업 명시.
+- [ ] C **GGUI 실연결 1회**(데모 메인/목표 경로: `X-GGUI-Path: ggui`, `embed_url`=GGUI 서버가 돌려준 url 예 `:6781/r/...`). 호출 순서/툴명 버그는 이미 수정됐고 남은 블로커는 `codeReady=false`(③) — 블로커 동안에는 LOCAL 폴백으로 데모 무중단 보장하되 GGUI 라이브 복구를 잔여 목표로 명시.
 - [ ] 계약 4파일 무변경(또는 4모듈 합의·동시 갱신 기록).
 - [ ] 단일 정본 확인: module-a = `voice-adaptive-kiosk/module-a`(①), contracts = `voice-adaptive-kiosk/contracts`(②) 한 곳뿐 — 루트 사본 없음.
 - [ ] 비밀키 무노출: `module-c/.env.local`(OPENAI), module-a `ELEVENLABS_API_KEY` 등 커밋·로그 금지.

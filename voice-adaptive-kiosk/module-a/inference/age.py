@@ -24,15 +24,11 @@ def _to_float(value: Any) -> float:
 
 def age_years_to_group(years: float) -> str:
     years = max(0.0, min(100.0, float(years)))
-    if years < 20:
-        return "10대"
     if years < 30:
-        return "20대"
-    if years < 40:
-        return "30대"
-    if years < 50:
-        return "40대"
-    return "50+"
+        return "young_adult"
+    if years <= 60:
+        return "adult"
+    return "senior_adult"
 
 
 def prediction_from_years(years: Any, confidence: float = 1.0) -> AgePrediction:
@@ -44,37 +40,6 @@ def prediction_from_years(years: Any, confidence: float = 1.0) -> AgePrediction:
         confidence=confidence_float,
         child_prob=1.0 if years_float < 13 else 0.0,
     )
-
-
-class AgeClassifier:
-    def __init__(self, model_path: str | Path, device: str | None = None) -> None:
-        import torch
-        from transformers import AutoFeatureExtractor, AutoModelForAudioClassification
-
-        self.model_path = Path(model_path)
-        self.device = device or ("cuda" if torch.cuda.is_available() else "cpu")
-        self.extractor = AutoFeatureExtractor.from_pretrained(self.model_path)
-        self.model = AutoModelForAudioClassification.from_pretrained(self.model_path)
-        self.model.to(self.device)
-        self.model.eval()
-        self.id2label = self.model.config.id2label
-
-    def predict(self, audio: np.ndarray, sampling_rate: int) -> AgePrediction:
-        import torch
-
-        with torch.inference_mode():
-            inputs = self.extractor(
-                audio,
-                sampling_rate=sampling_rate,
-                return_tensors="pt",
-                padding=True,
-            )
-            inputs = {key: value.to(self.device) for key, value in inputs.items()}
-            logits = self.model(**inputs).logits[0]
-        probs = torch.softmax(logits, dim=-1).detach().cpu().numpy()
-        idx = int(probs.argmax())
-        label = str(self.id2label[idx])
-        return AgePrediction(group=label, confidence=float(probs[idx]), child_prob=0.0)
 
 
 class VoxProfileWavLMAgeSexClassifier:
@@ -136,18 +101,8 @@ class VoxProfileWavLMAgeSexClassifier:
         return prediction_from_years(age_years, confidence=confidence)
 
 
-class MissingAgeModel:
-    def predict(self, audio: np.ndarray, sampling_rate: int) -> AgePrediction:
-        return AgePrediction(group="unknown", confidence=0.0, child_prob=0.0)
-
-
-def create_age_model(provider: str, model_path: str | Path, device: str | None = None):
+def create_age_model(provider: str, model_path: str | Path | None = None, device: str | None = None):
     normalized = provider.strip().lower()
     if normalized in {"wavlm_age_sex", "vox_profile", "tiantiaf"}:
         return VoxProfileWavLMAgeSexClassifier(device=device)
-    if normalized in {"local", "trained", "age_model"}:
-        model_path = Path(model_path)
-        if model_path.exists() and (model_path / "config.json").exists():
-            return AgeClassifier(model_path, device=device)
-        return MissingAgeModel()
     raise ValueError(f"Unsupported AGE_MODEL_PROVIDER: {provider}")

@@ -22,7 +22,8 @@ import { dirname, join } from "node:path";
 import { resolveProfile, pickCandidates, normalizeAssistLevel } from "./src/adapt.js";
 import { buildDataContract } from "./src/contract.js";
 import { renderLocalHtml } from "./src/local-render.js";
-import { generateViaGgui } from "./src/ggui-client.js";
+import { consumeGguiEvents, generateViaGgui } from "./src/ggui-client.js";
+import { groundIntent, normalizeGroundIntentRequest } from "./src/ground-intent.js";
 
 // ── .env.local / .env 경량 로더 (의존성 없이; 이미 set 된 process.env 는 덮어쓰지 않음) ──
 //   우선순위: 셸 export > .env.local > .env
@@ -58,10 +59,13 @@ const ENV = {
   GGUI_URL: process.env.GGUI_URL || "http://localhost:6781",
   GGUI_BEARER: process.env.GGUI_BEARER || "dev",
   GGUI_MODEL: process.env.GGUI_MODEL || "openai:gpt-5.5-2026-04-23",
+  GGUI_FORCE_CREATE: process.env.GGUI_FORCE_CREATE || "",
+  GGUI_TIMEOUT_MS: Number(process.env.GGUI_TIMEOUT_MS || 8000),
+  GROUND_INTENT_MODEL: process.env.GROUND_INTENT_MODEL || "gpt-4.1-mini",
 };
 
 // ── LOCAL 렌더 인메모리 스토어 (renderId → 렌더 메타) ───────────────
-/** @type {Map<string, {step:string, profile:object, candidates:object[], transcript:string, item?:object, selectedOptions?:object, total?:number, html:string}>} */
+/** @type {Map<string, {step:string, profile:object, candidates:object[], transcript:string, item?:object, selectedOptions?:object, total?:number, orderState?:object, possibleActions?:string[], html:string}>} */
 const renderStore = new Map();
 const SELF_BASE = () => `http://localhost:${ENV.PORT}`;
 
@@ -69,22 +73,34 @@ function shortId() {
   return randomBytes(5).toString("base64url"); // 예: sH9xK_
 }
 
+function withTimeout(promise, ms, label) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`${label} timeout after ${ms}ms`)), ms);
+  });
+  return Promise.race([promise, timeout]).finally(() => clearTimeout(timer));
+}
+
 /** LOCAL 경로: 요청 → 적응형 HTML 생성 + 저장 → GenerateUIResponse. */
 function generateLocal(req) {
   const {
     transcript = "",
-    age_group = "under50",
+    age_group = "unknown",
     assist_level = 0,
     menu_context = [],
     step = "recommend",
     item,
     selectedOptions,
     total,
+    order_state,
+    possible_actions = [],
   } = req;
 
   const profile = resolveProfile({ assist_level, age_group });
   const candidates = pickCandidates(menu_context, transcript, profile.tokens.card_count);
-  const targetItem = item ?? candidates[0];
+  const targetItem = item ?? menu_context?.[0] ?? candidates[0];
+  const resolvedOptions = selectedOptions ?? order_state?.selected_options ?? {};
+  const resolvedTotal = total ?? order_state?.total ?? targetItem?.price ?? 0;
   const contract = buildDataContract(step, { candidates, profile });
 
   const html = renderLocalHtml({
@@ -93,8 +109,10 @@ function generateLocal(req) {
     candidates,
     transcript,
     item: targetItem,
-    selectedOptions,
-    total,
+    selectedOptions: resolvedOptions,
+    total: resolvedTotal,
+    orderState: order_state,
+    possibleActions: possible_actions,
   });
 
   const id = shortId();
@@ -104,15 +122,32 @@ function generateLocal(req) {
     candidates,
     transcript,
     item: targetItem,
-    selectedOptions,
-    total,
+    selectedOptions: resolvedOptions,
+    total: resolvedTotal,
+    orderState: order_state,
+    possibleActions: possible_actions,
     html,
   });
 
   return {
     render_id: id,
     embed_url: `${SELF_BASE()}/r/${id}`,
-    contract: { actionSpec: contract.actionSpec, intent: contract.intent },
+    contract: {
+      actionSpec: contract.actionSpec,
+      intent: contract.intent,
+      _order_state: order_state ?? null,
+      _possible_actions: possible_actions,
+      _render_path: "local",
+      _profile: {
+        assist_level: profile.assist_level,
+        effective_level: profile.effective_level,
+        age_group: profile.age_group,
+        tone: profile.tokens.tone,
+        card_count: profile.tokens.card_count,
+        base_font_px: profile.tokens.base_font_px,
+        voice_guide: profile.tokens.voice_guide,
+      },
+    },
   };
 }
 
@@ -140,6 +175,41 @@ app.get("/health", (_req, res) => {
   });
 });
 
+app.get("/consume/:renderId", async (req, res) => {
+  const timeout = Math.max(0, Math.min(120, Number(req.query.timeout ?? 0) || 0));
+  try {
+    const out = await consumeGguiEvents(req.params.renderId, ENV, timeout);
+    return res.json(out);
+  } catch (err) {
+    return res.status(502).json({
+      events: [],
+      status: "error",
+      error: err?.message ?? String(err),
+    });
+  }
+});
+
+app.post("/ground-intent", async (req, res) => {
+  try {
+    const normalized = normalizeGroundIntentRequest(req.body || {});
+    const out = await groundIntent(normalized, ENV);
+    return res.json(out);
+  } catch (err) {
+    return res.status(500).json({
+      step: "recommend",
+      intent: "unknown",
+      item_candidates: [],
+      selected_options: {},
+      fulfillment: null,
+      loyalty: null,
+      payment_method: null,
+      confirm: null,
+      needs_clarification: true,
+      clarification_reason: err?.message ?? String(err),
+    });
+  }
+});
+
 /**
  * POST /generate-ui  (GenerateUIRequest → GenerateUIResponse)
  * GGUI_MODE=ggui 면 GGUI 경로 시도 → 실패 시 LOCAL 폴백.
@@ -147,22 +217,31 @@ app.get("/health", (_req, res) => {
  */
 app.post("/generate-ui", async (req, res) => {
   const body = req.body || {};
+  const allowedSteps = ["recommend", "options", "fulfillment", "loyalty", "payment", "confirm"];
   // 최소 유효성 + 정규화
   const normalized = {
     transcript: String(body.transcript ?? ""),
-    age_group: body.age_group === "50+" ? "50+" : "under50",
+    // Vox-Profile broad age 버킷을 그대로 통과 — adapt.js 가 시니어 버킷을 판단.
+    age_group:
+      typeof body.age_group === "string" && body.age_group ? body.age_group : "unknown",
     assist_level: normalizeAssistLevel(body.assist_level),
     menu_context: Array.isArray(body.menu_context) ? body.menu_context : [],
-    step: ["recommend", "options", "confirm"].includes(body.step) ? body.step : "recommend",
+    step: allowedSteps.includes(body.step) ? body.step : "recommend",
     item: body.item,
     selectedOptions: body.selectedOptions,
     total: body.total,
+    order_state: body.order_state && typeof body.order_state === "object" ? body.order_state : null,
+    possible_actions: Array.isArray(body.possible_actions) ? body.possible_actions.map(String) : [],
   };
 
   const wantGgui = ENV.GGUI_MODE === "ggui";
   if (wantGgui) {
     try {
-      const out = await generateViaGgui(normalized, ENV);
+      const out = await withTimeout(
+        generateViaGgui(normalized, ENV),
+        ENV.GGUI_TIMEOUT_MS,
+        "GGUI render",
+      );
       res.setHeader("X-GGUI-Path", "ggui");
       return res.json(out);
     } catch (err) {

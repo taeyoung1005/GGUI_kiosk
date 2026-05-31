@@ -1,6 +1,6 @@
 // src/adapt.js
 //
-// 적응 규율(canonical) — assist_level(0~3) + age_group(영어 decade 버킷) → UI 강도.
+// 적응 규율(canonical) — assist_level(0~3) + age_group(Vox-Profile broad 버킷) → UI 강도.
 // "구조 고정(큰 카드 2~3장 + 예/아니요 + 큰 글씨), 내용만 적응"이라는 SPEC §4 규칙을
 // 한 곳에 둔다. GGUI 경로는 이 규율을 prompt 로, LOCAL 경로는 이 규율을 디자인 토큰으로 쓴다.
 //
@@ -69,8 +69,8 @@ export function normalizeAssistLevel(level) {
   return Math.max(0, Math.min(3, Math.round(n)));
 }
 
-/** 시니어 버킷(50대 이상) — 보조로 적응 강도를 한 단계 올린다. */
-const SENIOR_GROUPS = new Set(["fifties", "sixties", "seventies_plus"]);
+/** 시니어 버킷 — 보조로 적응 강도를 한 단계 올린다. Legacy decade labels도 허용한다. */
+const SENIOR_GROUPS = new Set(["senior_adult", "fifties", "sixties", "seventies_plus"]);
 
 /**
  * 적응 프로파일 계산.
@@ -103,7 +103,7 @@ export function pickCandidates(menu_context, transcript, count) {
     .split(/\s+/)
     .filter((t) => t.length >= 1);
   const scored = items.map((it) => {
-    const hay = `${it.name ?? ""} ${it.category ?? ""} ${it.desc ?? ""}`;
+    const hay = `${it.name ?? ""} ${it.category ?? ""} ${it.desc ?? ""}`.toLowerCase();
     let score = 0;
     for (const t of tokens) {
       if (hay.includes(t)) score += 2;
@@ -132,9 +132,27 @@ export function stepCopy(step, profile, candidates) {
       };
     case "confirm":
       return {
-        title: big ? "Order this?" : "Please confirm your order",
-        subtitle: "Tap 'Yes' if it's correct, or 'No' to choose again.",
-        voice: "Would you like to order this? Tap Yes if it's correct, or No to choose again.",
+        title: big ? "Ready to pay?" : "Please confirm your order",
+        subtitle: "Check the order, place, points, and payment method before paying.",
+        voice: "Please check your order. Say yes or tap pay if everything is correct.",
+      };
+    case "fulfillment":
+      return {
+        title: big ? "Eat here or take out?" : "Choose dine in or take out",
+        subtitle: "Pick where this order should be prepared.",
+        voice: "Please say take out, dine in, or tap one of the large buttons.",
+      };
+    case "loyalty":
+      return {
+        title: big ? "Coupons or points?" : "Coupons and points",
+        subtitle: "You can scan a coupon, earn points, or skip.",
+        voice: "Please choose a coupon, points, or skip this step.",
+      };
+    case "payment":
+      return {
+        title: big ? "How will you pay?" : "Choose payment method",
+        subtitle: "Payment is not charged until the final confirmation.",
+        voice: "Please choose card, mobile pay, gift card, or pay at the counter.",
       };
     case "recommend":
     default: {

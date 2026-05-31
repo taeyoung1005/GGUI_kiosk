@@ -4,7 +4,8 @@ set -euo pipefail
 cd "$(dirname "$0")"
 
 export AGE_MODEL_PROVIDER="${AGE_MODEL_PROVIDER:-wavlm_age_sex}"
-export STT_MODEL="${STT_MODEL:-none}"
+export STT_MODEL="${STT_MODEL:-whisper-1}"
+export STT_LANGUAGE="${STT_LANGUAGE:-ko}"
 export STT_DEVICE="${STT_DEVICE:-cpu}"
 export STT_COMPUTE_TYPE="${STT_COMPUTE_TYPE:-int8}"
 

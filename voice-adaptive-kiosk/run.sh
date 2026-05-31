@@ -4,15 +4,16 @@
 # ------------------------------------------------------------
 #   A: uvicorn (Python · FastAPI · :8000)   ← MOCK_MODE=1 기본
 #   B: node    (Express     · :8001)
-#   C: node    (Express     · :8002)        ← GGUI_MODE=local 기본
+#   C: node    (Express     · :8002)        ← GGUI_MODE=local 기본(실데모 메인)
 #   D: vite    (React 프론트 · :5173)        ← VITE_USE_MOCK 은 D 의 .env 로 제어
 #
 # 4개 모듈을 백그라운드로 띄우고 헬스체크 후 안내를 출력한다.
 # 종료: Ctrl-C (모든 자식 프로세스 정리) 또는  bash run.sh stop
 #
 # 사용:
-#   bash run.sh            # 전체 기동 (A 포함)
+#   bash run.sh            # 전체 기동 (A 포함, C는 빠른 LOCAL 렌더)
 #   bash run.sh --no-a     # B/C/D 만 (A 없이; D 가 mock 이면 A 불필요)
+#   GGUI_MODE=ggui bash run.sh  # GGUI 생성 실험. codeReady=false면 C가 LOCAL로 폴백.
 #   bash run.sh stop       # 포트(8000/8001/8002/5173) 점유 프로세스 종료
 # ============================================================
 set -euo pipefail
@@ -77,9 +78,9 @@ if [[ "${WITH_A}" == "1" ]]; then
   log "Module A (uvicorn :${PORT_A}) 기동 — MOCK_MODE=${MOCK_MODE:-1}"
   (
     cd "${ROOT}/module-a"
-    # venv 있으면 사용
-    [[ -f ".venv/bin/activate" ]] && source ".venv/bin/activate"
-    MOCK_MODE="${MOCK_MODE:-1}" exec uvicorn app:app --port "${PORT_A}"
+    PYTHON_BIN="${PYTHON:-python}"
+    [[ -x ".venv/bin/python" ]] && PYTHON_BIN=".venv/bin/python"
+    MOCK_MODE="${MOCK_MODE:-1}" exec "${PYTHON_BIN}" -m uvicorn app:app --port "${PORT_A}"
   ) >"${LOG_DIR}/A.log" 2>&1 &
   PIDS+=("$!")
 else
@@ -92,7 +93,7 @@ log "Module B (node :${PORT_B}) 기동"
 PIDS+=("$!")
 
 # ── C · node (Express) ───────────────────────────────────────
-log "Module C (node :${PORT_C}) 기동 — GGUI_MODE=${GGUI_MODE:-local}"
+log "Module C (node :${PORT_C}) 기동 — GGUI_MODE=${GGUI_MODE:-local} (local=fast demo main)"
 ( cd "${ROOT}" && PORT="${PORT_C}" GGUI_MODE="${GGUI_MODE:-local}" exec node module-c/server.js ) >"${LOG_DIR}/C.log" 2>&1 &
 PIDS+=("$!")
 

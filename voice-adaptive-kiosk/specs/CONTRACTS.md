@@ -63,13 +63,17 @@ D --OrderRequest-------->  B  POST /orders       --> OrderResponse (mock 결제 
 **적응 주축 = `behavioral.assist_level` (0~3).** 나이(`age.group`)는 보조 신호 — 나이가 부정확해도 행동신호가 UI 강도를 결정한다.
 
 ```ts
-type AgeGroup = "50+" | "under50";
+// Vox-Profile broad taxonomy (12값). years_est 가 정밀 소스, group 은 rough 라벨.
+type AgeGroup =
+  | "young_adult" | "adult" | "senior_adult" | "child"
+  | "teens" | "twenties" | "thirties" | "forties"
+  | "fifties" | "sixties" | "seventies_plus" | "unknown";
 
 interface AnalyzeResult {
   transcript: string;        // STT 전사. 예: "Can I get a latte"
   language: string;          // 언어 코드. 데모=영어 → "en" (정본 기본값 "ko")
   age: {
-    group: AgeGroup;         // 이진 나이대 (보조 신호)
+    group: AgeGroup;         // 나이대 그룹 (보조 신호, broad taxonomy)
     years_est: number;       // 추정 나이(년)
     confidence: number;      // 분류 신뢰도 0~1
     child_prob: number;      // 아동 화자 확률 0~1 (안전·오탐 필터)
@@ -84,23 +88,23 @@ interface AnalyzeResult {
 }
 ```
 
-**예시 — 느린 어르신 (`50+`, assist_level 2):** `mocks.sampleAnalyzeResult` = `…Elder`
+**예시 — 느린 어르신 (`sixties`, assist_level 2):** `mocks.sampleAnalyzeResult` = `…Elder`
 ```json
 {
   "transcript": "Can I get a latte",
   "language": "en",
-  "age": { "group": "50+", "years_est": 67, "confidence": 0.72, "child_prob": 0.02 },
+  "age": { "group": "sixties", "years_est": 67, "confidence": 0.72, "child_prob": 0.02 },
   "behavioral": { "speech_rate": 2.8, "silence_ratio": 0.46, "filler_count": 2, "assist_level": 2 },
   "duration_ms": 1850
 }
 ```
 
-**예시 — 빠른 청년 (`under50`, assist_level 0):** `mocks.sampleAnalyzeResultYouth`
+**예시 — 빠른 청년 (`twenties`, assist_level 0):** `mocks.sampleAnalyzeResultYouth`
 ```json
 {
   "transcript": "Can I get a latte",
   "language": "en",
-  "age": { "group": "under50", "years_est": 24, "confidence": 0.81, "child_prob": 0.01 },
+  "age": { "group": "twenties", "years_est": 24, "confidence": 0.81, "child_prob": 0.01 },
   "behavioral": { "speech_rate": 5.6, "silence_ratio": 0.08, "filler_count": 0, "assist_level": 0 },
   "duration_ms": 920
 }
@@ -158,10 +162,13 @@ D 가 `{transcript, age_group, assist_level, menu_context, step}` 를 보내면 
 ```ts
 interface GenerateUIRequest {
   transcript: string;
-  age_group: AgeGroup;             // "50+" | "under50"
+  age_group: AgeGroup;             // broad AgeGroup taxonomy (12값)
   assist_level: 0 | 1 | 2 | 3;
   menu_context: MenuItem[];        // 후보 또는 전체 메뉴 아이템 (B 의 MenuItem 재사용)
-  step: "recommend" | "options" | "confirm";  // 멀티턴 단계
+  order_state?: AdaptiveOrderState;     // 현재 주문 상태 (GGUI 가 매 턴 같은 context 로 재생성)
+  possible_actions?: string[];          // 현재 단계에서 사용 가능한 action 이름 목록
+  // AdaptiveStep = 6단계 (멀티턴)
+  step: "recommend" | "options" | "fulfillment" | "loyalty" | "payment" | "confirm";
 }
 
 interface GenerateUIResponse {
@@ -175,7 +182,7 @@ interface GenerateUIResponse {
 ```json
 {
   "transcript": "Can I get a latte",
-  "age_group": "50+",
+  "age_group": "senior_adult",
   "assist_level": 2,
   "menu_context": [ { "id": "caffe-latte-003", "name": "Caffe Latte", "...": "MenuItem 들" } ],
   "step": "recommend"
@@ -235,8 +242,8 @@ interface OrderResponse { order_id: string; total: number; status: "paid"; }
 
 | mock 키 (mocks.json) / export (mocks.ts) | 내용 | 누가 소비 |
 |------------------------------------------|------|-----------|
-| `sampleAnalyzeResult` = `…Elder` | "Can I get a latte", `50+`, assist 2 | D (A mock) |
-| `sampleAnalyzeResultYouth` | 동일 발화, `under50`, assist 0 | D (A mock, 적응 대조) |
+| `sampleAnalyzeResult` = `…Elder` | "Can I get a latte", `sixties`, assist 2 | D (A mock) |
+| `sampleAnalyzeResultYouth` | 동일 발화, `twenties`, assist 0 | D (A mock, 적응 대조) |
 | `sampleMenu` | OBA Cafe 시드 메뉴 | D·C (B mock) |
 | `sampleGenerateUIRequest` / `…Response` | C 입출력 예시 | C(입력), D(출력) |
 | `sampleOrderRequest` / `…Response` | 주문 / mock 결제 | B(입력), D(출력) |
@@ -259,9 +266,9 @@ interface OrderResponse { order_id: string; total: number; status: "paid"; }
 
 병합 시 아래가 전부 참이어야 end-to-end 가 맞물린다.
 
-- [ ] **A `/analyze` 응답이 `AnalyzeResult` 스키마와 정확히 일치** (필드·타입·`assist_level∈{0,1,2,3}`·`age.group∈{"50+","under50"}`). `schemas.py` 로 검증되면 OK.
+- [ ] **A `/analyze` 응답이 `AnalyzeResult` 스키마와 정확히 일치** (필드·타입·`assist_level∈{0,1,2,3}`·`age.group∈AgeGroup`(broad taxonomy 12값)). `schemas.py` 로 검증되면 OK.
 - [ ] **B `/menu` 응답이 `Menu`** 형, 모든 item 이 `MenuItem`(특히 `options[].choices[].price_delta`).
-- [ ] **D→C 요청이 `GenerateUIRequest`**(특히 `menu_context` 는 B 의 `MenuItem` 배열, `step∈{recommend,options,confirm}`).
+- [ ] **D→C 요청이 `GenerateUIRequest`**(특히 `menu_context` 는 B 의 `MenuItem` 배열, `step∈{recommend,options,fulfillment,loyalty,payment,confirm}`).
 - [ ] **C `/generate-ui` 응답이 `GenerateUIResponse`** (`render_id`·`embed_url`·`contract`). **D 는 `embed_url` 을 그대로 iframe 임베드**(host/port 비가정), `contract` 의 구체 키에 강결합하지 않음.
 - [ ] **D→B `/orders` 요청이 `OrderRequest`**, `OrderLine.options` 키/값이 메뉴의 `MenuOption.type`/`choice.label` 과 일치 → B 가 `total` 계산.
 - [ ] **B `/orders` 응답이 `OrderResponse`**(`status:"paid"`).

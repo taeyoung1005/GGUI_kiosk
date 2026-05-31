@@ -1,13 +1,17 @@
-# Module A - English Voice Age Demo
+# Module A - Voice Analyze API
 
-Module A is the local FastAPI service for the voice-adaptive kiosk demo.
-The current demo path uses:
+Module A is the FastAPI service for the kiosk demo. It is API-only: no `/demo`
+web page, no local fine-tuned checkpoint, and no AIHub training path.
 
-- public age model: `tiantiaf/wavlm-large-age-sex`
-- Fair-Speech real recordings for validation
-- English ElevenLabs TTS for synthetic voice generation
-- no AIHub Korean training in the demo path
-- `STT_MODEL=none` for fast age-only demo inference
+Current runtime path:
+
+- STT: OpenAI Audio Transcriptions API by default (`STT_MODEL=whisper-1`,
+  `STT_LANGUAGE=ko`)
+- order translation: OpenAI Responses API (`ORDER_TRANSLATION_MODEL`,
+  default `gpt-4.1-mini`) for Korean senior proxy text
+- age signal: public pretrained `tiantiaf/wavlm-large-age-sex`
+- voice demo helpers: ElevenLabs preset generation and Korean senior proxy
+- main product surface: Module D kiosk UI
 
 ## Setup
 
@@ -26,41 +30,36 @@ directly because its shebang may still point to the old location. Use
 ## Run
 
 ```bash
+export OPENAI_API_KEY='...'
 export ELEVENLABS_API_KEY='...'
 PYTHON=.venv/bin/python ./run_local.sh
 ```
 
-Open the live demo dashboard:
-
-```text
-http://127.0.0.1:8000/demo
-```
-
-Useful health checks:
+Useful checks:
 
 ```bash
 curl -s http://127.0.0.1:8000/health | .venv/bin/python -m json.tool
 curl -s http://127.0.0.1:8000/demo/voice-presets | .venv/bin/python -m json.tool
 ```
 
-## Live Demo API
+## Demo APIs
 
-Generate an English voice preset:
+Generate a preset voice payload:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8000/demo/random-age-voice \
   -H 'content-type: application/json' \
-  -d '{"age_group":"50+","gender":"female","language":"en","seed":1}' \
+  -d '{"age_group":"senior_adult","gender":"female","language":"ko","seed":1}' \
   | .venv/bin/python -m json.tool
 ```
 
-Generate audio and analyze it in one request:
+Generate audio and analyze it:
 
 ```bash
 curl -s -X POST http://127.0.0.1:8000/demo/generate-and-analyze \
   -H 'content-type: application/json' \
-  -d '{"target_decade":"50+","age_group":"50+","gender":"female","language":"en","text":"This is a female speaker in their 50s and older. I would like a latte, please.","seed":1}' \
-  | .venv/bin/python -c 'import json,sys; d=json.load(sys.stdin); print({k:d[k] for k in ["voice_bucket","gender","voice_id","age","duration_ms"]})'
+  -d '{"age_group":"senior_adult","gender":"female","language":"ko","text":"아이스 라떼 하나랑 쿠키 하나 주문할게요.","seed":1}' \
+  | .venv/bin/python -m json.tool
 ```
 
 Analyze an existing audio file:
@@ -69,79 +68,17 @@ Analyze an existing audio file:
 curl -s -F file=@sample.mp3 http://127.0.0.1:8000/analyze | .venv/bin/python -m json.tool
 ```
 
-## Fair-Speech Validation
+Korean senior proxy route used by the live kiosk flow:
 
-Use Fair-Speech real recordings to validate the public age model. The dataset
-labels available for this path are four age bins and two genders:
-
-- age bins: `18-22`, `23-30`, `31-45`, `46-65`
-- genders: `female`, `male`
-- current presentation sample: 80 = 4 age bins x 2 genders x 10
-
-Run:
+This route translates the Korean text to English before ElevenLabs synthesis,
+so `OPENAI_API_KEY` must be set for real-mode use.
 
 ```bash
-PYTHONPATH=. .venv/bin/python scripts/fairspeech_eval.py \
-  --out-dir ./artifacts/fairspeech-eval-v1 \
-  --per-cell 10 \
-  --max-scan 6000 \
-  --device cpu
+curl -s -X POST http://127.0.0.1:8000/demo/korean-senior-proxy/analyze \
+  -H 'content-type: application/json' \
+  -d '{"text":"아이스 바닐라 라떼 큰 사이즈로 포장해주세요","gender":"female"}' \
+  | .venv/bin/python -m json.tool
 ```
-
-Current verified output:
-
-```text
-artifacts/fairspeech-eval-v1/fairspeech_eval.csv
-artifacts/fairspeech-eval-v1/fairspeech_eval_summary.json
-```
-
-Latest summary:
-
-- real recordings analyzed: 80/80
-- target age distribution: 20 samples per age bin
-- gender distribution: female 40, male 40
-- age-bin match: 29/80 (36.25%)
-- predicted distribution: `18-22` 11, `23-30` 26, `31-45` 27, `46-65` 7, `outside` 9
-
-Interpretation for the demo: this is a real-recording validation panel. The
-current public model is useful as a demo signal, but the measured age-bin
-accuracy is not strong enough to present as a reliable age classifier.
-
-## Synthetic English Batch
-
-The presentation batch is balanced by age bucket and gender:
-
-- age buckets: `10대`, `20대`, `30대`, `40대`, `50+`
-- genders: `female`, `male`
-- default sample count: 100 = 5 age buckets x 2 genders x 10
-
-Run:
-
-```bash
-.venv/bin/python scripts/age_demo_batch.py \
-  --samples 100 \
-  --language en \
-  --out-dir ./artifacts/age-demo-balanced-en-v1 \
-  --sleep-sec 0.05
-```
-
-Current verified output:
-
-```text
-artifacts/age-demo-balanced-en-v1/age_demo_batch_en_100.csv
-artifacts/age-demo-balanced-en-v1/age_demo_batch_en_100_summary.json
-```
-
-Latest summary:
-
-- generated/analyzed: 100/100
-- target age distribution: 20 samples per bucket
-- gender distribution: female 50, male 50
-- exact target match: 42/100
-- predicted decade distribution: 10대 2, 20대 18, 30대 37, 40대 14, 50대 14, 60대 4, 70대 2, 80대 9
-
-Interpretation for the demo: this batch is only a synthetic voice metadata
-probe. It should not be treated as ground-truth speaker age validation.
 
 ## Tests
 
@@ -149,8 +86,3 @@ probe. It should not be treated as ground-truth speaker age validation.
 PYTHONPATH=. .venv/bin/python -m unittest discover -s tests -v
 .venv/bin/python -m py_compile app.py inference/*.py tests/*.py scripts/*.py
 ```
-
-## Legacy AIHub Pipeline
-
-The AIHub Korean training scripts remain in `training/` for later follow-up, but
-they are not part of the current English demo path.

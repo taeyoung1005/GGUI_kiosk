@@ -66,13 +66,11 @@ POST /analyze
 - (선택) `/stt`, `/age`로 분리 노출 가능. 기본은 `/analyze` 단일 호출.
 - `assist_level` 0~3 = UI 강도. **나이 부정확해도 이 행동신호가 스파인.**
 
-### 오프라인 학습 파이프라인 (같은 서버, API 아님)
-```
-train_age_probe.py
-  AIHub 71320 (50+ 슬라이스 + 젊은층) → frozen XLSR-Korean/WavLM 임베딩
-  → 이진 probe "50+ vs 이하" 학습(수십 분) → age_probe.pt
-  → audeering zero-shot과 비교, 더 나은 쪽을 /analyze에 탑재
-```
+### 나이 신호
+
+현재 데모는 AIHub 직접 학습을 제거하고 public pretrained
+`tiantiaf/wavlm-large-age-sex`를 사용한다. 나이는 rough signal이고,
+`assist_level`이 UI 적응의 주 신호다.
 
 ### 독립 개발 방법
 - 통합 전: 고정 JSON 반환하는 mock `/analyze`부터 띄움 → D가 바로 붙음.

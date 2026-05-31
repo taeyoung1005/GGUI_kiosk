@@ -27,7 +27,7 @@ const menuItemSchema = {
 
 /**
  * step 별 DataContract 생성.
- * step: "recommend" | "options" | "confirm"
+ * step: "recommend" | "options" | "fulfillment" | "loyalty" | "payment" | "confirm"
  */
 export function buildDataContract(step, { candidates, profile }) {
   const intentByStep = {
@@ -35,8 +35,14 @@ export function buildDataContract(step, { candidates, profile }) {
       "Senior-friendly kiosk recommendation screen — recommend menu items as 2-3 large cards, selectable with a single big touch.",
     options:
       "Senior-friendly kiosk options screen — choose temperature/size one item at a time with large buttons.",
+    fulfillment:
+      "Senior-friendly kiosk fulfillment screen — choose dine in or take out with two large buttons and voice affordance.",
+    loyalty:
+      "Senior-friendly kiosk loyalty screen — choose coupon scan, earn points, or skip with clear large buttons.",
+    payment:
+      "Senior-friendly kiosk payment screen — choose one payment method, but do not charge until the final confirmation.",
     confirm:
-      "Senior-friendly kiosk confirm screen — summarize the selection and confirm the order with large Yes/No buttons.",
+      "Senior-friendly kiosk final confirmation screen — summarize item, options, fulfillment, loyalty, and payment before charging.",
   };
 
   // 공통 props: 화면 제목/안내와 적응 강도(글자·여백·음성).
@@ -52,6 +58,14 @@ export function buildDataContract(step, { candidates, profile }) {
     voiceGuide: {
       schema: { type: "string" },
       description: "speechSynthesis 로 읽어줄 음성 안내 문구(없으면 무음).",
+    },
+    orderState: {
+      schema: { type: "object", additionalProperties: true },
+      description: "현재 주문 상태. 선택 메뉴, 옵션, 매장/포장, 포인트, 결제수단을 포함.",
+    },
+    possibleActions: {
+      schema: { type: "array", items: { type: "string" } },
+      description: "현재 단계에서 허용된 intent/action 이름 목록.",
     },
   };
 
@@ -132,6 +146,92 @@ export function buildDataContract(step, { candidates, profile }) {
           icon: "↩️",
           nextStep: "recommend",
         },
+      },
+    };
+  }
+
+  if (step === "fulfillment") {
+    return {
+      intent: intentByStep.fulfillment,
+      propsSpec: {
+        description: "매장/포장 선택 화면 props.",
+        properties: {
+          ...baseProps,
+          item: { schema: menuItemSchema, required: true },
+          total: { schema: { type: "number" }, description: "현재 합계 금액(원)." },
+        },
+      },
+      actionSpec: {
+        setFulfillment: {
+          label: "Choose place",
+          description: "Select dine in or take out. Sends {value}.",
+          schema: {
+            type: "object",
+            properties: { value: { type: "string", enum: ["Dine In", "Take Out"] } },
+            required: ["value"],
+          },
+          nextStep: "loyalty",
+        },
+        back: { label: "Back", nextStep: "options" },
+      },
+    };
+  }
+
+  if (step === "loyalty") {
+    return {
+      intent: intentByStep.loyalty,
+      propsSpec: {
+        description: "쿠폰/포인트 선택 화면 props.",
+        properties: {
+          ...baseProps,
+          item: { schema: menuItemSchema, required: true },
+          total: { schema: { type: "number" }, description: "현재 합계 금액(원)." },
+        },
+      },
+      actionSpec: {
+        setLoyalty: {
+          label: "Choose points option",
+          description: "Select coupon scan, earn points, or skip. Sends {value}.",
+          schema: {
+            type: "object",
+            properties: { value: { type: "string", enum: ["scan", "phone", "none"] } },
+            required: ["value"],
+          },
+          nextStep: "payment",
+        },
+        back: { label: "Back", nextStep: "fulfillment" },
+      },
+    };
+  }
+
+  if (step === "payment") {
+    return {
+      intent: intentByStep.payment,
+      propsSpec: {
+        description: "결제수단 선택 화면 props.",
+        properties: {
+          ...baseProps,
+          item: { schema: menuItemSchema, required: true },
+          total: { schema: { type: "number" }, description: "현재 합계 금액(원)." },
+        },
+      },
+      actionSpec: {
+        setPayment: {
+          label: "Choose payment",
+          description: "Select payment method. Sends {value}.",
+          schema: {
+            type: "object",
+            properties: {
+              value: {
+                type: "string",
+                enum: ["Credit Card", "Gift Card", "Kakao Pay", "Naver Pay", "Pay at Counter"],
+              },
+            },
+            required: ["value"],
+          },
+          nextStep: "confirm",
+        },
+        back: { label: "Back", nextStep: "loyalty" },
       },
     };
   }

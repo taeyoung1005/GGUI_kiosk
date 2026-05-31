@@ -58,8 +58,8 @@
   ]
 }
 ```
-- `GET /menu/search?q=latte` 응답은 계약 타입이 아닌 래퍼: `{ "query": "latte", "count": 4, "items": MenuItem[] }`. (검색 결과 wrapper — `items`만 `MenuItem[]`)
-- 실데이터: `restaurant="OBA Cafe"`, **항목 20개**, 옵션 라벨은 **영어**(Temperature/Size/Shot, Hot/Iced/Regular/Large…). `contracts/types.ts` 의 한국어 예시(온도/HOT)는 **타입 형태 예시일 뿐**, 실제 라벨은 영어 데이터를 따른다.
+- `GET /menu/search?q=latte` 응답은 계약 타입이 아닌 래퍼: `{ "query": "latte", "count": 10, "items": MenuItem[] }`. (검색 결과 wrapper — `items`만 `MenuItem[]`)
+- 실데이터: `restaurant="OBA Cafe"`, **항목 48개**, 옵션 라벨은 **영어**(Temperature/Size/Shot, Hot/Iced/Regular/Large…). `contracts/types.ts` 의 한국어 예시(온도/HOT)는 **타입 형태 예시일 뿐**, 실제 라벨은 영어 데이터를 따른다.
 
 ### 소비 (D → B): `OrderRequest` / `OrderLine`
 `POST /orders` 요청 바디 = `OrderRequest`:
@@ -99,7 +99,7 @@ module-b/
 ├── data/
 │   └── menu.seed.json     # ← MENU_DATA_SPEC.md 소유. 서버는 읽기만.
 └── public/
-    └── img/menu/          # 항목별 SVG 20개 (image_url 가 가리킴). MENU_DATA_SPEC.md 소유.
+    └── img/menu/          # 항목별 SVG 48개 (image_url 가 가리킴). MENU_DATA_SPEC.md 소유.
 ```
 - `.env` 로딩 우선순위: **셸 export > `.env.local` > `.env`**. 서버가 읽는 유일 변수 = `PORT`(기본 8001).
 
@@ -108,7 +108,7 @@ module-b/
 ## 5. 독립 개발 (격리) — 다른 모듈 mock 방법
 이 모듈은 **그 자체로 완전 격리 동작한다.** 외부 의존(다른 모듈·키·DB) 0.
 - **A(8000)/C(8002)/D(5173) 불필요**: B는 어떤 모듈도 호출하지 않는다. 데이터는 로컬 JSON.
-- **메뉴 데이터 mock**: 이미 `data/menu.seed.json`(항목 20개)이 박혀 있어 그대로 기동된다. 데이터를 새로 만들 일이 있으면 이 명세가 아니라 **MENU_DATA_SPEC.md** 를 따른다(경로/스키마 고정).
+- **메뉴 데이터 mock**: 이미 `data/menu.seed.json`(항목 48개)이 박혀 있어 그대로 기동된다. 데이터를 새로 만들 일이 있으면 이 명세가 아니라 **MENU_DATA_SPEC.md** 를 따른다(경로/스키마 고정).
 - **소비자(D) 입장 검증**: B를 단독 기동 후 위 §3 JSON 으로 `curl` 만 하면, D/C가 없어도 계약 입출력 전체를 검증할 수 있다(§7).
 - **키·외부의존 없이 도는 법**: `npm install` 후 `node server.js` 끝. 인터넷·시크릿 불필요.
 
@@ -144,10 +144,10 @@ node -e "JSON.parse(require('fs').readFileSync('data/menu.seed.json','utf8'))"  
 
 **B. 런타임 스모크(서버 기동 후, 별 터미널)**
 ```bash
-# 헬스: status ok, items 20
+# 헬스: status ok, items 48
 curl -s localhost:8001/health
 
-# 메뉴 전체: restaurant="OBA Cafe", items 길이 20, 각 item 에 id/name/price/options
+# 메뉴 전체: restaurant="OBA Cafe", items 길이 48, 각 item 에 id/name/price/options
 curl -s localhost:8001/menu | head -c 400
 
 # 검색: latte 다건 반환 (count>0, items 가 MenuItem[])
@@ -171,8 +171,8 @@ curl -s -o /dev/null -w "%{http_code}\n" localhost:8001/orders/ord-9999
 
 **합격선**
 - `node --check` 통과(현재 PASS).
-- `/health` → `status:"ok"`, `items:20`.
-- `/menu` → `Menu` 형태(restaurant + categories + items 20).
+- `/health` → `status:"ok"`, `items:48`.
+- `/menu` → `Menu` 형태(restaurant + categories + items 48).
 - `/menu/search?q=latte` → `count>0`, `items` 가 `MenuItem[]`.
 - `POST /orders`(유효) → 201 + `{order_id, total>0, status:"paid"}` (응답까지 1~2초: mock 결제 지연 정상).
 - `GET /orders/:id` → 동일 `OrderResponse`. 없는 id → 404. 빈 `items` → 400.
@@ -189,7 +189,7 @@ curl -s -o /dev/null -w "%{http_code}\n" localhost:8001/orders/ord-9999
 ---
 
 ## 9. 현재 상태 (코드 읽고 사실)
-- **동작함.** `node --check server.js` PASS, `menu.seed.json` 파싱 OK, 항목 20개(`OBA Cafe`, 카테고리 Coffee/Latte/Tea/Ade/Beverage/Dessert), `public/img/menu/` 에 SVG 20개 존재. `node_modules` 설치 완료.
+- **동작함.** `node --check server.js` PASS, `menu.seed.json` 파싱 OK, 항목 48개(`OBA Cafe`, 카테고리 Coffee/Latte/Tea/Ade/Beverage/Dessert), `public/img/menu/` 에 SVG 48개 존재. `node_modules` 설치 완료.
 - 엔드포인트 5종 + `/img` 정적 서빙 모두 구현됨. mock 결제 지연 1~2초, 주문 in-memory(`ord-1001`+). CORS 전체 허용(데모용).
 - 견고성: 없는 `item_id`/옵션 라벨은 0 가산 무시, 전부 무효면 400. 데이터 영어, 검색은 한/영 정규화(소문자+공백제거) + 3글자 이상 토큰 부분일치.
 - 깨진 곳 없음. 남은 것: 데이터 큐레이션은 MENU_DATA_SPEC.md 소관(서버 변경 불필요).
@@ -201,4 +201,4 @@ curl -s -o /dev/null -w "%{http_code}\n" localhost:8001/orders/ord-9999
 - `GET /menu` 가 `contracts/types.ts` 의 `Menu` 와 정확히 일치(필드명·중첩). C(GGUI 생성)는 `menu_context: MenuItem[]` 로 이 항목들을 그대로 받는다.
 - `POST /orders` 가 `OrderRequest`(`items:[{item_id, options, qty}]`) 를 받아 `OrderResponse`(`{order_id, total, status:"paid"}`) 를 돌려준다 — D의 주문 확정 흐름과 맞물림.
 - CORS 가 프론트 오리진(localhost:5173 등)을 허용(현재 전체 허용 → OK).
-- §7 스모크 전체 PASS. 데이터 계약(20개 항목·image_url 경로↔실제 SVG) 은 MENU_DATA_SPEC.md 검증과 합치되어야 함(이 명세는 서빙만 보장).
+- §7 스모크 전체 PASS. 데이터 계약(48개 항목·image_url 경로↔실제 SVG) 은 MENU_DATA_SPEC.md 검증과 합치되어야 함(이 명세는 서빙만 보장).
