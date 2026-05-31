@@ -1,7 +1,7 @@
 // 데모/mock 샘플 데이터 (typed) — contracts/mocks.ts
 //
-// 각 모듈은 이 형태에 합의하고 서로 mock 한다. VITE_USE_MOCK=true 또는 MOCK_MODE=1
-// 일 때, 백엔드/키 없이도 이 고정 데이터로 UI·흐름을 단독 개발한다.
+// 각 모듈은 이 형태에 합의하고 서로 mock 한다. VITE_USE_MOCK=true 일 때
+// 백엔드/키 없이도 이 고정 데이터로 UI·흐름을 단독 개발한다.
 //
 // 정본 JSON = mocks.json. 이 .ts 는 타입을 입혀 import 편의를 준다.
 

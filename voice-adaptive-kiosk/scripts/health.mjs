@@ -4,7 +4,7 @@
 // (D 는 vite — /health 가 없으므로 루트 200 으로 확인)
 
 const TARGETS = [
-  { name: "A (analyze)", url: `http://localhost:${process.env.ANALYZE_PORT || 8000}/health` },
+  { name: "A (realtime/STT)", url: `http://localhost:${process.env.ANALYZE_PORT || 8000}/health` },
   { name: "B (menu)", url: `http://localhost:${process.env.MENU_PORT || 8001}/health` },
   { name: "C (generate-ui)", url: `http://localhost:${process.env.GGUI_WRAPPER_PORT || 8002}/health` },
   { name: "D (frontend)", url: `http://localhost:${process.env.VITE_PORT || 5173}/`, expectHtml: true },
