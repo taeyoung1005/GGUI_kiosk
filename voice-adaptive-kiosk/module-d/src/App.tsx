@@ -58,8 +58,8 @@ export default function App() {
     <div className="app">
       <header className="topbar">
         <div className="brand">
-          <h1>OBA 카페 키오스크</h1>
-          <small>음성으로 주문하는 키오스크</small>
+          <h1>Giosk</h1>
+          <small>말하면 나에게 맞는 화면이 뜨는 음성 키오스크</small>
         </div>
       </header>
 
