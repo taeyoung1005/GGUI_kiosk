@@ -113,7 +113,8 @@ if [[ "${GGUI_MODE}" == "ggui" ]]; then
     log "GGUI MCP 서버 재사용 (:${PORT_GGUI} 이미 가동 중)"
   elif [[ "${KEY_PRESENT}" == "1" ]] && command -v npx >/dev/null 2>&1; then
     log "GGUI MCP 서버 기동 (npx @ggui-ai/cli serve :${PORT_GGUI})"
-    ( exec npx -y @ggui-ai/cli serve --mcp-only --dev-allow-all --port "${PORT_GGUI}" ) \
+    ( exec npx -y @ggui-ai/cli serve --mcp-only --dev-allow-all --port "${PORT_GGUI}" \
+        --public-base-url "http://127.0.0.1:${PORT_GGUI}" --no-open ) \
       >"${LOG_DIR}/GGUI.log" 2>&1 &
     PIDS+=("$!")
   else
