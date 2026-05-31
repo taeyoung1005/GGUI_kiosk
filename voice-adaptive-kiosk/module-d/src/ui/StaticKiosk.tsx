@@ -1,8 +1,9 @@
 // src/ui/StaticKiosk.tsx
 //
-// 일반 키오스크 UI — 데모의 "before" + GGUI 실패 시 폴백.
-// 평범하지만 동작하는 주문 UI: 카테고리 탭 + 빽빽한 메뉴 그리드 + 옵션 모달 없이
-// 간단 선택 → 주문. assist 적응 없음(의도적으로 작은 글씨/조밀).
+// 일반 키오스크 UI — 평소 키오스크(kiosk phase) + GGUI 실패 시 폴백.
+// 평범하지만 동작하는 주문 UI: 카테고리 탭 + 메뉴 그리드 + 옵션 선택 → 주문.
+// 매장/포장 선택 아래에 상시 음성 주문 버튼을 두고, 모든 화면 하단에도
+// 음성 주문 버튼과 처음으로(Start Over) 버튼을 상시 노출한다.
 //
 // Module B 의 /menu 데이터를 그대로 그린다(mock 모드면 contracts/mocks 의 sampleMenu).
 
@@ -21,6 +22,11 @@ type CartLine = {
   qty: number;
 };
 
+export interface StaticKioskProps {
+  /** 상시 음성 주문 버튼을 눌렀을 때 호출(App 이 voice phase 로 전환). */
+  onStartVoice: () => void;
+}
+
 const PAGE_SIZE = 8;
 const PAYMENT_METHODS: PaymentMethod[] = [
   "Credit Card",
@@ -30,24 +36,37 @@ const PAYMENT_METHODS: PaymentMethod[] = [
   "Pay at Counter",
 ];
 
+const PAYMENT_LABELS: Record<PaymentMethod, string> = {
+  "Credit Card": "신용카드",
+  "Gift Card": "상품권",
+  "Kakao Pay": "카카오페이",
+  "Naver Pay": "네이버페이",
+  "Pay at Counter": "카운터 결제",
+};
+
+const FULFILLMENT_LABELS: Record<Fulfillment, string> = {
+  "Dine In": "매장",
+  "Take Out": "포장",
+};
+
 const DECISION_STEPS = [
-  "Place",
-  "Menu",
-  "Options",
-  "Review",
-  "Points",
-  "Pay",
+  "장소",
+  "메뉴",
+  "옵션",
+  "확인",
+  "적립",
+  "결제",
 ] as const;
 
 const OPTIONAL_UPGRADES = [
-  { type: "Set Upgrade", label: "Set dessert", priceDelta: 3000 },
-  { type: "Combo Upgrade", label: "Large size combo", priceDelta: 1500 },
-  { type: "Add-on", label: "Extra shot", priceDelta: 500 },
+  { type: "Set Upgrade", label: "디저트 세트", priceDelta: 3000 },
+  { type: "Combo Upgrade", label: "라지 사이즈 콤보", priceDelta: 1500 },
+  { type: "Add-on", label: "샷 추가", priceDelta: 500 },
 ] as const;
 
-export default function StaticKiosk() {
+export default function StaticKiosk({ onStartVoice }: StaticKioskProps) {
   const [menu, setMenu] = useState<Menu | null>(null);
-  const [cat, setCat] = useState<string>("All");
+  const [cat, setCat] = useState<string>("전체");
   const [selected, setSelected] = useState<MenuItem | null>(null);
   const [options, setOptions] = useState<Record<string, string>>({});
   const [phase, setPhase] = useState<Phase>("start");
@@ -65,7 +84,7 @@ export default function StaticKiosk() {
 
   const items = useMemo(() => {
     if (!menu) return [];
-    return cat === "All"
+    return cat === "전체"
       ? menu.items
       : menu.items.filter((i) => i.category === cat);
   }, [menu, cat]);
@@ -174,7 +193,7 @@ export default function StaticKiosk() {
     return (
       <div className="overlay">
         <div className="spinner" />
-        <div className="big">Loading menu...</div>
+        <div className="big">메뉴를 불러오는 중...</div>
       </div>
     );
   }
@@ -183,8 +202,8 @@ export default function StaticKiosk() {
     return (
       <div className="overlay">
         <div className="spinner" />
-        <div className="big">Processing payment...</div>
-        <p className="hint">Please wait a moment.</p>
+        <div className="big">결제를 진행하고 있어요...</div>
+        <p className="hint">잠시만 기다려 주세요.</p>
       </div>
     );
   }
@@ -193,12 +212,12 @@ export default function StaticKiosk() {
     return (
       <div className="overlay">
         <div className="done-check">✅</div>
-        <div className="big">Payment Complete</div>
+        <div className="big">결제 완료</div>
         <p className="hint">
-          Order <b>{orderNo}</b> · Total {won(total)}
+          주문번호 <b>{orderNo}</b> · 합계 {won(total)}
         </p>
         <button className="btn-primary" onClick={restart}>
-          Start Over
+          처음으로
         </button>
       </div>
     );
@@ -207,9 +226,9 @@ export default function StaticKiosk() {
   if (phase === "start") {
     return (
       <div className="static-start">
-        <div className="kiosk-red-strip">ORDER HERE</div>
-        <h2>Where will you enjoy your order?</h2>
-        <p>Choose one before browsing the menu.</p>
+        <div className="kiosk-red-strip">여기서 주문하세요</div>
+        <h2>어디에서 드시겠어요?</h2>
+        <p>메뉴를 보기 전에 먼저 선택해 주세요.</p>
         <div className="fulfillment-cards">
           <button
             onClick={() => {
@@ -217,8 +236,8 @@ export default function StaticKiosk() {
               setPhase("browse");
             }}
           >
-            <span>Eat In</span>
-            <small>Use a table number later</small>
+            <span>매장</span>
+            <small>나중에 테이블 번호를 사용해요</small>
           </button>
           <button
             onClick={() => {
@@ -226,13 +245,16 @@ export default function StaticKiosk() {
               setPhase("browse");
             }}
           >
-            <span>Take Out</span>
-            <small>Pack order to go</small>
+            <span>포장</span>
+            <small>가져가실 수 있도록 포장해요</small>
           </button>
         </div>
+
+        <VoiceOrderBanner onStartVoice={onStartVoice} />
+
         <div className="static-legal-row">
-          <span>Card payment only at this kiosk</span>
-          <span>Receipt prints after payment</span>
+          <span>이 키오스크는 카드 결제만 가능해요</span>
+          <span>결제 후 영수증이 출력돼요</span>
         </div>
       </div>
     );
@@ -244,15 +266,15 @@ export default function StaticKiosk() {
       <div className="static-options-screen">
         <DecisionRail phase={phase} />
         <div className="flow-friction-note">
-          Selected item is locked to this option step. Price can change before it is added to the cart.
+          선택한 메뉴는 이 옵션 단계에 고정돼요. 장바구니에 담기 전에 가격이 바뀔 수 있어요.
         </div>
         <div className="option-progress">
-          <span className="active">1 Required Options</span>
-          <span>2 Set Upgrade</span>
-          <span>3 Add-ons</span>
+          <span className="active">1 필수 옵션</span>
+          <span>2 세트 변경</span>
+          <span>3 추가 선택</span>
         </div>
         <div className="price-change-note">
-          Required options and upgrades are priced separately. Check the updated total before adding.
+          필수 옵션과 추가 선택은 가격이 따로 더해져요. 담기 전에 바뀐 합계를 확인해 주세요.
         </div>
 
         <div className="static-options-layout">
@@ -267,25 +289,25 @@ export default function StaticKiosk() {
             </h2>
             <p>{selected.desc}</p>
             <div className="mini-summary">
-              <span>Base</span>
+              <span>기본</span>
               <strong>{won(selected.price)}</strong>
             </div>
             <div className="mini-summary">
-              <span>Current</span>
+              <span>현재</span>
               <strong>{won(cur)}</strong>
             </div>
           </aside>
 
           <main className="option-main-panel">
             {selected.options.length === 0 && (
-              <p className="hint">No options to choose.</p>
+              <p className="hint">선택할 옵션이 없어요.</p>
             )}
 
             {selected.options.map((opt) => (
               <div className="option-group static-option-group" key={opt.type}>
                 <div className="o-label static-label">
                   <span>{opt.type}</span>
-                  <small>Required</small>
+                  <small>필수</small>
                 </div>
                 <div className="choices compact">
                   {opt.choices.map((c) => (
@@ -308,7 +330,7 @@ export default function StaticKiosk() {
           </main>
 
           <aside className="option-upsell-panel">
-            <h3>Optional upgrades</h3>
+            <h3>추가 선택</h3>
             {OPTIONAL_UPGRADES.map((upgrade) => (
               <button
                 key={upgrade.type}
@@ -325,15 +347,15 @@ export default function StaticKiosk() {
               </button>
             ))}
             <div className="allergy-note">
-              <strong>Allergy Info</strong>
-              <span>Milk · Caffeine may be included.</span>
+              <strong>알레르기 정보</strong>
+              <span>우유 · 카페인이 포함될 수 있어요.</span>
             </div>
           </aside>
         </div>
 
         <div className="confirm-box static-confirm">
           <div className="c-total static-total">
-            <span>Total</span>
+            <span>합계</span>
             <span>{won(cur)}</span>
           </div>
         </div>
@@ -343,12 +365,14 @@ export default function StaticKiosk() {
             className="mic-btn secondary"
             onClick={() => setPhase("browse")}
           >
-            Back to Menu
+            메뉴로 돌아가기
           </button>
           <button className="btn-primary" onClick={addSelectedToCart}>
-            Add to Order
+            주문에 담기
           </button>
         </div>
+
+        <StaticBottomBar onStartVoice={onStartVoice} onRestart={restart} />
       </div>
     );
   }
@@ -360,8 +384,8 @@ export default function StaticKiosk() {
         <div className="checkout-title">
           <span>1</span>
           <div>
-            <h2>Review your order</h2>
-            <p>{fulfillment} · {cart.length} item types</p>
+            <h2>주문 내용을 확인하세요</h2>
+            <p>{FULFILLMENT_LABELS[fulfillment]} · 메뉴 {cart.length}종</p>
           </div>
         </div>
         <CartPanel
@@ -372,16 +396,18 @@ export default function StaticKiosk() {
         />
         <div className="static-actions">
           <button className="mic-btn secondary" onClick={() => setPhase("browse")}>
-            Add More
+            더 담기
           </button>
           <button
             className="btn-primary"
             disabled={cart.length === 0}
             onClick={() => setPhase("loyalty")}
           >
-            Continue
+            계속하기
           </button>
         </div>
+
+        <StaticBottomBar onStartVoice={onStartVoice} onRestart={restart} />
       </div>
     );
   }
@@ -393,15 +419,15 @@ export default function StaticKiosk() {
         <div className="checkout-title">
           <span>2</span>
           <div>
-            <h2>Coupons and points</h2>
-            <p>Scan a reward code or skip to payment.</p>
+            <h2>쿠폰과 적립</h2>
+            <p>적립 코드를 인식하거나 결제로 건너뛰세요.</p>
           </div>
         </div>
         <div className="loyalty-grid">
           {[
-            ["scan", "App Coupon", "Scan QR code from the app"],
-            ["phone", "Earn Points", "Enter phone number"],
-            ["none", "Skip", "No coupon or points"],
+            ["scan", "앱 쿠폰", "앱의 QR 코드를 인식해요"],
+            ["phone", "포인트 적립", "전화번호를 입력해요"],
+            ["none", "건너뛰기", "쿠폰·적립 없이 진행"],
           ].map(([value, title, desc]) => (
             <button
               key={value}
@@ -416,18 +442,20 @@ export default function StaticKiosk() {
         {loyalty !== "none" && (
           <div className="scan-box">
             <div className="scan-target">QR</div>
-            <p>{loyalty === "scan" ? "Hold the app coupon near the scanner." : "Enter phone number on the keypad below."}</p>
+            <p>{loyalty === "scan" ? "앱 쿠폰을 스캐너에 가까이 대 주세요." : "아래 키패드로 전화번호를 입력해 주세요."}</p>
             {loyalty === "phone" && <div className="fake-keypad">010 - ____ - ____</div>}
           </div>
         )}
         <div className="static-actions">
           <button className="mic-btn secondary" onClick={() => setPhase("review")}>
-            Back
+            뒤로
           </button>
           <button className="btn-primary" onClick={() => setPhase("payment")}>
-            Continue to Payment
+            결제로 이동
           </button>
         </div>
+
+        <StaticBottomBar onStartVoice={onStartVoice} onRestart={restart} />
       </div>
     );
   }
@@ -439,8 +467,8 @@ export default function StaticKiosk() {
         <div className="checkout-title">
           <span>3</span>
           <div>
-            <h2>Select payment method</h2>
-            <p>Total {won(payableTotal)} · {fulfillment}</p>
+            <h2>결제 방법 선택</h2>
+            <p>합계 {won(payableTotal)} · {FULFILLMENT_LABELS[fulfillment]}</p>
           </div>
         </div>
         <div className="payment-grid">
@@ -450,26 +478,28 @@ export default function StaticKiosk() {
               className={paymentMethod === method ? "selected" : ""}
               onClick={() => setPaymentMethod(method)}
             >
-              <span>{method}</span>
-              <small>{method === "Credit Card" ? "Insert or tap card below" : "Select and follow the next instruction"}</small>
+              <span>{PAYMENT_LABELS[method]}</span>
+              <small>{method === "Credit Card" ? "아래에 카드를 넣거나 대 주세요" : "선택 후 다음 안내를 따라 주세요"}</small>
             </button>
           ))}
         </div>
         <div className="reader-panel">
           <div className="reader-slot" />
           <div>
-            <strong>{paymentMethod}</strong>
-            <p>{paymentMethod === "Credit Card" ? "Tap or insert your card at the reader." : "A confirmation screen may appear before payment."}</p>
+            <strong>{PAYMENT_LABELS[paymentMethod]}</strong>
+            <p>{paymentMethod === "Credit Card" ? "리더기에 카드를 대거나 넣어 주세요." : "결제 전에 확인 화면이 나타날 수 있어요."}</p>
           </div>
         </div>
         <div className="static-actions">
           <button className="mic-btn secondary" onClick={() => setPhase("loyalty")}>
-            Back
+            뒤로
           </button>
           <button className="btn-primary" onClick={pay}>
-            Pay {won(payableTotal)}
+            {won(payableTotal)} 결제하기
           </button>
         </div>
+
+        <StaticBottomBar onStartVoice={onStartVoice} onRestart={restart} />
       </div>
     );
   }
@@ -479,36 +509,36 @@ export default function StaticKiosk() {
     <div className="standard-kiosk">
       <div className="standard-top">
         <div>
-          <strong>{fulfillment}</strong>
-          <span>Choose from {menu.items.length} items, then move through review, points, and payment.</span>
+          <strong>{FULFILLMENT_LABELS[fulfillment]}</strong>
+          <span>{menu.items.length}개 메뉴 중에서 고른 뒤 확인·적립·결제 순서로 진행해요.</span>
         </div>
-        <button onClick={() => setPhase("start")}>Change</button>
+        <button onClick={() => setPhase("start")}>변경</button>
       </div>
 
       <DecisionRail phase={phase} />
 
       <div className="flow-friction-note">
-        Standard kiosk flow separates menu browsing, option selection, order review, rewards, and payment into different screens.
+        일반 키오스크는 메뉴 보기, 옵션 선택, 주문 확인, 적립, 결제를 서로 다른 화면으로 나눠요.
       </div>
 
       <div className="standard-body">
         <aside className="category-rail">
-          {["All", ...menu.categories].map((c) => (
+          {["전체", ...menu.categories].map((c) => (
             <button
               key={c}
               className={c === cat ? "active" : ""}
               onClick={() => setCategory(c)}
             >
               {c}
-              <small>{c === "All" ? menu.items.length : menu.items.filter((i) => i.category === c).length}</small>
+              <small>{c === "전체" ? menu.items.length : menu.items.filter((i) => i.category === c).length}</small>
             </button>
           ))}
         </aside>
 
         <main className="menu-browser">
           <div className="menu-step-note">
-            <b>Step 2 · Browse menu</b>
-            <span>{cat} · {items.length} items · page {page + 1} of {pageCount}</span>
+            <b>2단계 · 메뉴 보기</b>
+            <span>{cat} · 메뉴 {items.length}개 · {pageCount}쪽 중 {page + 1}쪽</span>
           </div>
 
           <div className="grid">
@@ -529,13 +559,13 @@ export default function StaticKiosk() {
 
           <div className="page-controls">
             <button onClick={() => setPage((p) => Math.max(0, p - 1))} disabled={page === 0}>
-              Previous
+              이전
             </button>
             <span>
-              Page {page + 1} / {pageCount}
+              {page + 1} / {pageCount} 쪽
             </span>
             <button onClick={() => setPage((p) => Math.min(pageCount - 1, p + 1))} disabled={page >= pageCount - 1}>
-              Next
+              다음
             </button>
           </div>
         </main>
@@ -547,15 +577,50 @@ export default function StaticKiosk() {
             disabled={cart.length === 0}
             onClick={() => setPhase("review")}
           >
-            Checkout
+            결제하기
           </button>
           <div className="side-help">
-            <span>Review</span>
-            <span>Points</span>
-            <span>Payment</span>
+            <span>확인</span>
+            <span>적립</span>
+            <span>결제</span>
           </div>
         </aside>
       </div>
+
+      <StaticBottomBar onStartVoice={onStartVoice} onRestart={restart} />
+    </div>
+  );
+}
+
+/** 매장/포장 선택 아래에 두는 큰 음성 주문 안내 버튼. */
+function VoiceOrderBanner({ onStartVoice }: { onStartVoice: () => void }) {
+  return (
+    <button className="voice-order-banner" type="button" onClick={onStartVoice}>
+      <span className="voice-order-icon" aria-hidden="true">🎤</span>
+      <span className="voice-order-text">
+        <strong>음성으로 주문하기</strong>
+        <small>버튼을 누르고 메뉴를 말씀하시면 큰 화면으로 도와드려요</small>
+      </span>
+    </button>
+  );
+}
+
+/** 모든 화면 하단에 상시 노출되는 음성 주문 + 처음으로 바. */
+function StaticBottomBar({
+  onStartVoice,
+  onRestart,
+}: {
+  onStartVoice: () => void;
+  onRestart: () => void;
+}) {
+  return (
+    <div className="static-bottom-bar">
+      <button className="mic-btn" type="button" onClick={onStartVoice}>
+        🎤 음성으로 주문하기
+      </button>
+      <button className="mic-btn secondary" type="button" onClick={onRestart}>
+        처음으로
+      </button>
     </div>
   );
 }
@@ -563,7 +628,7 @@ export default function StaticKiosk() {
 function DecisionRail({ phase }: { phase: Phase }) {
   const active = stepIndexForPhase(phase);
   return (
-    <div className="decision-rail" aria-label="Standard kiosk order steps">
+    <div className="decision-rail" aria-label="일반 키오스크 주문 단계">
       {DECISION_STEPS.map((step, index) => (
         <span
           key={step}
@@ -602,11 +667,11 @@ function CartPanel({
   return (
     <div className={dense ? "cart-panel dense" : "cart-panel"}>
       <div className="cart-head">
-        <strong>My Order</strong>
-        <span>{cart.reduce((sum, line) => sum + line.qty, 0)} items</span>
+        <strong>내 주문</strong>
+        <span>{cart.reduce((sum, line) => sum + line.qty, 0)}개</span>
       </div>
       {cart.length === 0 ? (
-        <p className="empty-cart">No items selected.</p>
+        <p className="empty-cart">담은 메뉴가 없어요.</p>
       ) : (
         <div className="cart-lines">
           {cart.map((line) => (
@@ -626,7 +691,7 @@ function CartPanel({
         </div>
       )}
       <div className="cart-total">
-        <span>Total</span>
+        <span>합계</span>
         <strong>{won(total)}</strong>
       </div>
     </div>
@@ -635,7 +700,7 @@ function CartPanel({
 
 function formatOptionSummary(opts: Record<string, string>): string {
   const values = Object.values(opts).filter(Boolean);
-  return values.length ? values.join(" · ") : "Default";
+  return values.length ? values.join(" · ") : "기본";
 }
 
 function unitTotal(item: MenuItem, opts: Record<string, string>): number {

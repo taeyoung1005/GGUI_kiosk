@@ -32,7 +32,7 @@ export function artFor(item: MenuItem): string {
     .join("")
     .slice(0, 2)
     .toUpperCase();
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220" viewBox="0 0 320 220" role="img" aria-label="${escapeXml(item.name)}"><rect width="320" height="220" rx="18" fill="${bg}"/><circle cx="160" cy="92" r="58" fill="#fff" opacity=".8"/><text x="160" y="111" text-anchor="middle" font-size="46" font-family="Arial, sans-serif">${emojiFor(item)}</text><text x="160" y="172" text-anchor="middle" font-size="28" font-weight="800" fill="${fg}" font-family="Arial, sans-serif">${escapeXml(label)}</text></svg>`;
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="320" height="220" viewBox="0 0 320 220" role="img" aria-label="${escapeXml(item.name)}"><rect width="320" height="220" rx="18" fill="${bg}"/><circle cx="160" cy="92" r="58" fill="#fff" opacity=".8"/><text x="160" y="111" text-anchor="middle" font-size="46" font-family="Pretendard, sans-serif">${emojiFor(item)}</text><text x="160" y="172" text-anchor="middle" font-size="28" font-weight="800" fill="${fg}" font-family="Pretendard, sans-serif">${escapeXml(label)}</text></svg>`;
   return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
 }
 

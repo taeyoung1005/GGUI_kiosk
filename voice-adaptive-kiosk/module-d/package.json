@@ -3,7 +3,7 @@
   "private": true,
   "version": "0.1.0",
   "type": "module",
-  "description": "음성 적응형 키오스크 — Module D (웹 키오스크 프론트). 일반 키오스크(before/폴백) ↔ GGUI 적응 UI(after).",
+  "description": "음성 적응형 키오스크 — Module D (웹 키오스크 프론트). kiosk ↔ voice 2-phase 전체 전환: 일반 키오스크와 음성 주문 기반 GGUI 적응 UI.",
   "scripts": {
     "dev": "vite",
     "build": "tsc -b && vite build",

@@ -29,8 +29,8 @@ body,
 
 body {
   font-family:
-    Avenir Next, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
-    "Segoe UI", sans-serif;
+    "Pretendard Variable", Pretendard, Avenir Next, ui-sans-serif, system-ui,
+    -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
   background:
     linear-gradient(90deg, rgba(0, 122, 90, 0.08) 0 1px, transparent 1px 100%),
     linear-gradient(0deg, rgba(21, 21, 21, 0.05) 0 1px, transparent 1px 100%),
@@ -259,34 +259,6 @@ button:disabled {
   font-weight: 700;
 }
 
-.voice-selector {
-  display: inline-grid;
-  grid-auto-flow: column;
-  gap: 6px;
-  padding: 4px;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
-  background: #f8f1e2;
-}
-
-.voice-selector button {
-  min-height: 44px;
-  padding: 0 14px;
-  border: 2px solid transparent;
-  border-radius: 6px;
-  background: #fff;
-  color: var(--ink);
-  font-size: 14px;
-  font-weight: 950;
-}
-
-.voice-selector button.active {
-  border-color: var(--ink);
-  background: var(--after);
-  color: #fff;
-  box-shadow: 2px 2px 0 rgba(21, 21, 21, 0.18);
-}
-
 @keyframes pulse {
   0% {
     box-shadow: 0 0 0 0 rgba(201, 54, 44, 0.35);
@@ -307,19 +279,6 @@ button:disabled {
   justify-items: center;
 }
 
-.comparison-grid {
-  display: grid;
-  grid-template-columns: minmax(760px, 1.06fr) minmax(620px, 0.94fr);
-  gap: 16px;
-  align-items: stretch;
-  overflow-x: auto;
-  padding-bottom: 8px;
-}
-
-.compare-pane {
-  min-width: 0;
-}
-
 .kiosk-frame,
 .demo-pane {
   min-width: 0;
@@ -335,20 +294,8 @@ button:disabled {
   width: min(980px, 100%);
 }
 
-.comparison-grid .kiosk-frame {
-  height: 100%;
-}
-
-.before-pane {
-  --pane-accent: var(--before);
-}
-
 .standard-frame {
   --pane-accent: var(--before);
-}
-
-.after-pane {
-  --pane-accent: var(--after);
 }
 
 .adaptive-frame {
@@ -398,52 +345,6 @@ button:disabled {
 .kiosk-frame > .adaptive,
 .kiosk-frame > .standard-compare {
   padding: 20px;
-}
-
-.proxy-trace {
-  display: grid;
-  grid-template-columns: minmax(150px, 0.9fr) minmax(260px, 1.7fr) minmax(150px, 0.8fr) minmax(160px, 0.8fr);
-  gap: 8px;
-  align-items: stretch;
-  margin: 0 0 14px;
-  padding: 10px;
-  border: 2px solid var(--ink);
-  border-radius: var(--radius);
-  background: #fffef6;
-  box-shadow: 4px 4px 0 rgba(21, 21, 21, 0.1);
-}
-
-.proxy-trace div {
-  min-width: 0;
-  display: grid;
-  gap: 4px;
-  padding: 8px;
-  border: 1px solid var(--line);
-  border-radius: 6px;
-  background: #fff;
-}
-
-.proxy-trace span {
-  color: var(--muted);
-  font-size: 11px;
-  font-weight: 950;
-  text-transform: uppercase;
-}
-
-.proxy-trace b {
-  min-width: 0;
-  color: var(--ink);
-  font-size: 13px;
-  line-height: 1.25;
-  overflow-wrap: anywhere;
-}
-
-.proxy-trace p {
-  grid-column: 1 / -1;
-  margin: 0;
-  color: var(--muted);
-  font-size: 12px;
-  font-weight: 800;
 }
 
 .static-start {
@@ -510,6 +411,63 @@ button:disabled {
 .static-legal-row {
   font-size: 12px;
   font-weight: 850;
+}
+
+/* 매장/포장 아래 상시 음성 주문 안내 버튼. */
+.voice-order-banner {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 18px 22px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  background: var(--after);
+  color: #fff;
+  text-align: left;
+  box-shadow: 5px 5px 0 rgba(21, 21, 21, 0.16);
+}
+
+.voice-order-icon {
+  font-size: 36px;
+  line-height: 1;
+}
+
+.voice-order-text {
+  display: grid;
+  gap: 4px;
+}
+
+.voice-order-text strong {
+  font-size: 22px;
+  font-weight: 950;
+}
+
+.voice-order-text small {
+  font-size: 14px;
+  font-weight: 700;
+  opacity: 0.92;
+}
+
+/* 모든 화면 하단의 음성 주문 + 처음으로 상시 바. */
+.static-bottom-bar {
+  position: sticky;
+  bottom: 0;
+  z-index: 5;
+  display: grid;
+  grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr);
+  gap: 12px;
+  margin-top: 18px;
+  padding: 12px;
+  border: 2px solid var(--ink);
+  border-radius: var(--radius);
+  background: #fff;
+  box-shadow: 0 -6px 0 rgba(21, 21, 21, 0.08);
+}
+
+.static-bottom-bar .mic-btn {
+  min-height: 60px;
+  font-size: 18px;
 }
 
 .standard-compare {
@@ -1803,71 +1761,13 @@ button:disabled {
   font-weight: 900;
 }
 
+/* 적응 강도는 항상 고령자 친화 최대로 고정(큰 글씨·넓은 여백). */
 .adaptive {
-  --a-fs: 18px;
-  --a-card-pad: 16px;
-  --a-gap: 12px;
-  background: #f5f7f1;
-  min-height: 100%;
-}
-
-.adaptive[data-assist="1"] {
-  --a-fs: 21px;
-  --a-card-pad: 18px;
-  --a-gap: 14px;
-}
-
-.adaptive[data-assist="2"] {
-  --a-fs: 25px;
-  --a-card-pad: 22px;
-  --a-gap: 16px;
-}
-
-.adaptive[data-assist="3"] {
   --a-fs: 30px;
   --a-card-pad: 26px;
   --a-gap: 18px;
-}
-
-.compare-pane .adaptive {
-  --a-fs: 17px;
-  --a-card-pad: 14px;
-  --a-gap: 10px;
-}
-
-.compare-pane .adaptive[data-assist="1"],
-.compare-pane .adaptive[data-assist="2"],
-.compare-pane .adaptive[data-assist="3"] {
-  --a-fs: 18px;
-  --a-card-pad: 14px;
-  --a-gap: 10px;
-}
-
-.gen-banner,
-.signal-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  margin-bottom: 12px;
-  padding: 10px;
-  border: 1px solid var(--after);
-  border-radius: var(--radius);
-  background: #e8f7f2;
-  color: #004f3a;
-  font-size: 13px;
-  font-weight: 800;
-}
-
-.signal-strip {
-  border-color: #c9b15b;
-  background: #fff7d6;
-  color: #5f4100;
-}
-
-.sig {
-  padding: 4px 7px;
-  border-radius: 5px;
-  background: rgba(255, 255, 255, 0.72);
+  background: #f5f7f1;
+  min-height: 100%;
 }
 
 .adaptive-scene {
@@ -1892,11 +1792,6 @@ button:disabled {
   border-radius: var(--radius);
 }
 
-.compare-pane .adaptive-scene {
-  padding: 16px;
-  background-size: 30px 30px;
-}
-
 .adaptive-head {
   display: flex;
   justify-content: space-between;
@@ -1909,17 +1804,8 @@ button:disabled {
 .adaptive-head h2 {
   margin: 7px 0 4px;
   font-size: clamp(34px, calc(var(--a-fs) + 24px), 64px);
-  line-height: 0.95;
+  line-height: 1.08;
   letter-spacing: 0;
-}
-
-.compare-pane .adaptive-head h2 {
-  font-size: 42px;
-}
-
-.compare-pane .adaptive-head p {
-  max-width: 32rem;
-  overflow-wrap: anywhere;
 }
 
 .adaptive-head p {
@@ -1974,14 +1860,6 @@ button:disabled {
   align-items: start;
 }
 
-.compare-pane .adaptive-layout {
-  grid-template-columns: 1fr;
-}
-
-.age-express .adaptive-layout {
-  grid-template-columns: 1fr;
-}
-
 .adaptive-main {
   min-width: 0;
 }
@@ -1997,19 +1875,6 @@ button:disabled {
   background: var(--scene-deep);
   color: #fff;
   box-shadow: 0 16px 0 rgba(23, 32, 29, 0.09);
-}
-
-.compare-pane .care-panel {
-  position: static;
-  display: grid;
-  grid-template-columns: auto 1fr;
-  align-items: center;
-  gap: 8px 12px;
-  box-shadow: 0 8px 0 rgba(23, 32, 29, 0.08);
-}
-
-.compare-pane .care-panel span {
-  grid-column: 2;
 }
 
 .care-kicker {
@@ -2038,10 +1903,6 @@ button:disabled {
   font-weight: 950;
 }
 
-.compare-pane .question {
-  font-size: 30px;
-}
-
 .big-cards {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -2050,11 +1911,6 @@ button:disabled {
 
 .cards-guided {
   grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.95fr);
-}
-
-.compare-pane .cards-guided,
-.compare-pane .big-cards {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 .cards-comfort {
@@ -2075,15 +1931,6 @@ button:disabled {
     transform 0.08s ease,
     box-shadow 0.15s ease;
   box-shadow: 0 8px 0 rgba(23, 32, 29, 0.08);
-}
-
-.compare-pane .big-card {
-  min-height: 270px;
-}
-
-.compare-pane .big-art {
-  aspect-ratio: 1.2;
-  max-height: 118px;
 }
 
 .big-card.primary {
@@ -2294,35 +2141,27 @@ button:disabled {
   font-weight: 950;
 }
 
+/* 음성 버튼 상시 + 처음으로 하단 바(적응 UI). */
 .multi-turn {
   margin-top: 18px;
   display: grid;
-  grid-template-columns: auto minmax(220px, 1fr) auto auto;
-  gap: 10px;
+  grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+  gap: 12px;
   align-items: center;
 }
 
-.compare-pane .multi-turn {
-  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, 1fr);
+.multi-turn .mic-btn {
+  min-height: 64px;
+  font-size: calc(var(--a-fs) * 0.7);
 }
 
-.compare-pane .multi-turn .mic-btn {
-  min-width: 0;
-  padding: 0 10px;
-  overflow-wrap: anywhere;
-}
-
-.voice-turn-input {
-  min-height: 50px;
-  min-width: 0;
-  padding: 0 14px;
-  border: 2px solid var(--scene-line);
-  border-radius: 8px;
-  background: #fff;
-  color: var(--scene-ink);
-  font: inherit;
-  font-size: max(15px, calc(var(--a-fs) * 0.72));
-  font-weight: 800;
+/* 진행/녹음 중 오버레이의 음성 제어(정지/취소). */
+.voice-control-bar {
+  margin-top: 16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
 }
 
 .overlay {
@@ -2425,14 +2264,6 @@ button:disabled {
     width: 100%;
   }
 
-  .proxy-trace {
-    grid-template-columns: 1fr 1fr;
-  }
-
-  .comparison-grid {
-    grid-template-columns: minmax(720px, 1fr) minmax(620px, 1fr);
-  }
-
   .stepper {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2469,12 +2300,6 @@ button:disabled {
     box-shadow: none;
   }
 
-  .comparison-grid {
-    grid-template-columns: minmax(0, 1fr);
-    overflow-x: visible;
-  }
-
-  .proxy-trace,
   .standard-compare-body.browse,
   .standard-compare-body.options,
   .standard-two-buttons,
@@ -2516,11 +2341,6 @@ button:disabled {
 
   .multi-turn {
     grid-template-columns: 1fr 1fr;
-  }
-
-  .voice-turn-input {
-    grid-column: 1 / -1;
-    order: -1;
   }
 
   .care-panel {
