@@ -17,8 +17,6 @@ function baseRequest(overrides = {}) {
   return {
     step: "recommend",
     transcript: "",
-    korean_text: "",
-    english_proxy_text: "",
     menu_context: menu.items,
     selected_item: null,
     order_state: {
@@ -64,8 +62,7 @@ test("validateGroundIntent removes hallucinated item ids and keeps DB-backed can
 test("fallbackGroundIntent maps Korean and romanized yuzu utterances to Yuzu Tea", () => {
   const result = fallbackGroundIntent(
     baseRequest({
-      korean_text: "유자차 하나 주문해줘",
-      english_proxy_text: "I would like a yuza tea, please.",
+      transcript: "유자차 하나 주문해줘",
     }),
   );
 
@@ -77,8 +74,7 @@ test("fallbackGroundIntent maps Korean and romanized yuzu utterances to Yuzu Tea
 test("fallbackGroundIntent maps cake utterances to dessert candidates", () => {
   const result = fallbackGroundIntent(
     baseRequest({
-      korean_text: "딸기 케이크 하나 주문해줘",
-      english_proxy_text: "I would like a strawberry cake, please.",
+      transcript: "딸기 케이크 하나 주문해줘",
     }),
   );
 
@@ -88,8 +84,7 @@ test("fallbackGroundIntent maps cake utterances to dessert candidates", () => {
 test("fallbackGroundIntent asks for clarification when the menu item does not exist", () => {
   const result = fallbackGroundIntent(
     baseRequest({
-      korean_text: "없는 메뉴 주문해줘",
-      english_proxy_text: "I would like a dragon fruit pizza, please.",
+      transcript: "없는 메뉴 주문해줘",
     }),
   );
 
@@ -134,8 +129,8 @@ test("fallbackGroundIntent maps option utterances to real option labels only", (
     }),
   );
 
-  assert.deepEqual(icedLarge.selected_options, { Temperature: "Iced", Size: "Large" });
-  assert.deepEqual(oatLessSweet.selected_options, { Milk: "Oat Milk", Sweetness: "Less Sweet" });
+  assert.deepEqual(icedLarge.selected_options, { 온도: "차갑게", 사이즈: "크게" });
+  assert.deepEqual(oatLessSweet.selected_options, { 우유: "오트 우유", 당도: "덜 달게" });
 });
 
 test("validateGroundIntent keeps only option labels available on the selected item", () => {
@@ -146,10 +141,10 @@ test("validateGroundIntent keeps only option labels available on the selected it
       intent: "set_options",
       item_candidates: [],
       selected_options: {
-        Temperature: "Iced",
-        Size: "Large",
-        Milk: "Oat Milk",
-        Sweetness: "Impossible Sweet",
+        온도: "차갑게",
+        사이즈: "크게",
+        우유: "오트 우유",
+        당도: "말도 안 되게 달게",
       },
       fulfillment: null,
       loyalty: null,
@@ -175,9 +170,9 @@ test("validateGroundIntent keeps only option labels available on the selected it
   );
 
   assert.deepEqual(result.selected_options, {
-    Temperature: "Iced",
-    Size: "Large",
-    Milk: "Oat Milk",
+    온도: "차갑게",
+    사이즈: "크게",
+    우유: "오트 우유",
   });
 });
 

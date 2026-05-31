@@ -3,30 +3,10 @@
   "$id": "https://oba-weekenthon.local/contracts/analyze.schema.json",
   "title": "AnalyzeResult",
   "type": "object",
-  "required": ["transcript", "language", "age", "behavioral", "duration_ms"],
+  "required": ["transcript", "language", "duration_ms"],
   "properties": {
     "transcript": { "type": "string" },
     "language": { "type": "string" },
-    "age": {
-      "type": "object",
-      "required": ["group", "confidence"],
-      "properties": {
-        "group": { "type": "string" },
-        "years_est": { "type": ["number", "null"] },
-        "confidence": { "type": "number", "minimum": 0, "maximum": 1 },
-        "child_prob": { "type": "number", "minimum": 0, "maximum": 1 }
-      }
-    },
-    "behavioral": {
-      "type": "object",
-      "required": ["speech_rate", "silence_ratio", "filler_count", "assist_level"],
-      "properties": {
-        "speech_rate": { "type": "number" },
-        "silence_ratio": { "type": "number" },
-        "filler_count": { "type": "integer" },
-        "assist_level": { "type": "integer", "minimum": 0, "maximum": 3 }
-      }
-    },
     "duration_ms": { "type": "integer", "minimum": 0 }
   }
 }

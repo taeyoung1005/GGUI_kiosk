@@ -119,8 +119,6 @@ export function normalizeGroundIntentRequest(body = {}) {
   return {
     step: normalizeStep(body.step),
     transcript: String(body.transcript ?? ""),
-    korean_text: String(body.korean_text ?? ""),
-    english_proxy_text: String(body.english_proxy_text ?? ""),
     menu_context: Array.isArray(body.menu_context) ? body.menu_context : [],
     selected_item: body.selected_item && typeof body.selected_item === "object" ? body.selected_item : null,
     order_state: body.order_state && typeof body.order_state === "object" ? body.order_state : {},
@@ -153,8 +151,6 @@ function buildOpenAIRequest(request, env) {
     input: JSON.stringify({
       step: request.step,
       transcript: request.transcript,
-      korean_text: request.korean_text,
-      english_proxy_text: request.english_proxy_text,
       selected_item: request.selected_item,
       order_state: request.order_state,
       menu_context: slimMenu(request.menu_context),
@@ -337,20 +333,33 @@ function matchConfirm(text) {
 function optionAliasHit(text, type, label) {
   const normalizedType = normalize(type);
   const normalizedLabel = normalize(label);
-  if (normalizedType.includes("temperature")) {
-    if (normalizedLabel === "iced") return hasAny(text, ["ice", "iced", "cold", "아이스", "차갑"]);
-    if (normalizedLabel === "hot") return hasAny(text, ["hot", "warm", "따뜻", "뜨거"]);
+  // 온도(temperature)
+  if (normalizedType.includes("온도") || normalizedType.includes("temperature")) {
+    if (normalizedLabel.includes("차갑") || normalizedLabel === "iced")
+      return hasAny(text, ["ice", "iced", "cold", "아이스", "차갑", "차가운"]);
+    if (normalizedLabel.includes("뜨겁") || normalizedLabel === "hot")
+      return hasAny(text, ["hot", "warm", "따뜻", "뜨거"]);
   }
-  if (normalizedType.includes("size")) {
-    if (normalizedLabel === "large") return hasAny(text, ["large", "big", "큰", "라지"]);
-    if (normalizedLabel === "regular") return hasAny(text, ["regular", "normal", "보통"]);
+  // 사이즈(size)
+  if (normalizedType.includes("사이즈") || normalizedType.includes("size")) {
+    if (normalizedLabel.includes("크게") || normalizedLabel === "large")
+      return hasAny(text, ["large", "big", "큰", "크게", "라지"]);
+    if (normalizedLabel.includes("기본") || normalizedLabel === "regular")
+      return hasAny(text, ["regular", "normal", "보통", "기본"]);
   }
-  if (normalizedType.includes("milk")) {
-    if (normalizedLabel.includes("oat")) return hasAny(text, ["oat", "oat milk", "오트", "오트밀크"]);
+  // 우유(milk)
+  if (normalizedType.includes("우유") || normalizedType.includes("milk")) {
+    if (normalizedLabel.includes("오트") || normalizedLabel.includes("oat"))
+      return hasAny(text, ["oat", "oat milk", "오트", "오트밀크", "오트 우유"]);
+    if (normalizedLabel.includes("저지방"))
+      return hasAny(text, ["저지방", "low fat", "skim"]);
   }
-  if (normalizedType.includes("sweet")) {
-    if (normalizedLabel.includes("less")) return hasAny(text, ["less", "덜", "not too sweet"]);
-    if (normalizedLabel.includes("extra")) return hasAny(text, ["extra sweet", "달게", "더 달"]);
+  // 당도(sweetness)
+  if (normalizedType.includes("당도") || normalizedType.includes("sweet")) {
+    if (normalizedLabel.includes("덜") || normalizedLabel.includes("less"))
+      return hasAny(text, ["less", "덜", "덜 달", "not too sweet"]);
+    if (normalizedLabel.includes("더") || normalizedLabel.includes("extra"))
+      return hasAny(text, ["extra sweet", "더 달게", "더 달", "달게"]);
   }
   return false;
 }
@@ -382,7 +391,7 @@ function baseResponse(step) {
 }
 
 function intentText(request) {
-  return normalize([request.transcript, request.korean_text, request.english_proxy_text].filter(Boolean).join(" "));
+  return normalize([request.transcript].filter(Boolean).join(" "));
 }
 
 function normalizeStep(step) {

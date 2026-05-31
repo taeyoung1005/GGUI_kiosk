@@ -30,9 +30,7 @@ test("POST /ground-intent returns validated fallback grounding without OpenAI", 
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         step: "recommend",
-        transcript: "I would like a yuza tea, please.",
-        korean_text: "유자차 하나 주문해줘",
-        english_proxy_text: "I would like a yuza tea, please.",
+        transcript: "유자차 하나 주문해줘",
         menu_context: menu.items,
         order_state: {
           selected_options: {},

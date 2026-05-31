@@ -11,40 +11,38 @@ const C_URL = (process.env.C_URL || process.env.VITE_GGUI_URL || "http://localho
 const menu = [
   {
     id: "caffe-latte-003",
-    name: "Caffe Latte",
-    category: "Latte",
+    name: "카페 라떼",
+    category: "라떼",
     price: 4500,
     image_url: "",
-    desc: "Classic espresso with steamed milk.",
+    desc: "에스프레소에 스팀 우유를 더한 기본 라떼.",
     options: [
-      { type: "Temperature", choices: [{ label: "Hot", price_delta: 0 }, { label: "Iced", price_delta: 0 }] },
-      { type: "Size", choices: [{ label: "Regular", price_delta: 0 }, { label: "Large", price_delta: 500 }] },
+      { type: "온도", choices: [{ label: "뜨겁게", price_delta: 0 }, { label: "차갑게", price_delta: 0 }] },
+      { type: "사이즈", choices: [{ label: "기본", price_delta: 0 }, { label: "크게", price_delta: 500 }] },
     ],
   },
   {
     id: "vanilla-latte-004",
-    name: "Vanilla Latte",
-    category: "Latte",
+    name: "바닐라 라떼",
+    category: "라떼",
     price: 5000,
     image_url: "",
-    desc: "Sweet vanilla latte.",
+    desc: "달콤한 바닐라 라떼.",
     options: [],
   },
   {
     id: "matcha-latte-005",
-    name: "Matcha Latte",
-    category: "Latte",
+    name: "말차 라떼",
+    category: "라떼",
     price: 5200,
     image_url: "",
-    desc: "Green tea latte.",
+    desc: "녹차로 만든 라떼.",
     options: [],
   },
 ];
 
 const req = {
-  transcript: "Can I get a latte",
-  age_group: process.env.AGE_GROUP || "sixties",
-  assist_level: Number(process.env.ASSIST_LEVEL || 2),
+  transcript: "라떼 한 잔 주세요",
   menu_context: menu,
   step: process.env.STEP || "recommend",
 };
