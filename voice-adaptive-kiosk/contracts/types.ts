@@ -10,54 +10,15 @@
 
 // ────────────────────────────────────────────────────────────
 // AnalyzeResult  (Module A → Module D)
-//   음성(wav 16kHz) → 전사 + 나이대 + 행동신호(assist_level).
-//   적응 신호 주축 = 행동신호(assist_level 0~3), 나이(age)는 보조.
+//   음성 → 전사(transcript). 적응 강도는 항상 고령자 최대로 고정되므로
+//   나이/행동신호는 더 이상 계약에 싣지 않는다.
 // ────────────────────────────────────────────────────────────
 
-/**
- * 나이대 그룹 — Vox-Profile broad taxonomy.
- * years_est(연속값)이 정밀 소스, group 은 rough age 라벨. UI 적응의 주축은 assist_level.
- * senior_adult 는 보조로 적응 강도를 한 단계 올린다.
- */
-export type AgeGroup =
-  | "young_adult"
-  | "adult"
-  | "senior_adult"
-  | "child"
-  | "teens"
-  | "twenties"
-  | "thirties"
-  | "forties"
-  | "fifties"
-  | "sixties"
-  | "seventies_plus"
-  | "unknown";
-
 export interface AnalyzeResult {
-  /** STT 전사 텍스트. 예: "라떼 하나 주세요" */
+  /** STT 전사 텍스트. 예: "라떼 한 잔 주세요" */
   transcript: string;
   /** 언어 코드. 한국어 기본 → "ko" */
   language: string;
-  age: {
-    /** 이진 나이대 그룹 (보조 신호) */
-    group: AgeGroup;
-    /** 추정 나이(년) */
-    years_est: number;
-    /** 나이 분류 신뢰도 0~1 */
-    confidence: number;
-    /** 아동 화자 확률 0~1 (안전·오탐 필터용) */
-    child_prob: number;
-  };
-  behavioral: {
-    /** 발화 속도 (음절/초). 낮을수록 느림 */
-    speech_rate: number;
-    /** 전체 대비 침묵 비율 0~1. 높을수록 머뭇거림 */
-    silence_ratio: number;
-    /** 채움말("음","어"…) 횟수 */
-    filler_count: number;
-    /** UI 적응 강도 (주축 신호) 0=일반 … 3=최대 보조 */
-    assist_level: 0 | 1 | 2 | 3;
-  };
   /** 입력 오디오 길이(ms) */
   duration_ms: number;
 }
@@ -133,8 +94,6 @@ export interface AdaptiveOrderState {
 
 export interface GenerateUIRequest {
   transcript: string;
-  age_group: AgeGroup;
-  assist_level: 0 | 1 | 2 | 3;
   /** 후보 또는 전체 메뉴 아이템 컨텍스트 */
   menu_context: MenuItem[];
   /** 현재 주문 상태. GGUI가 매 턴 같은 context로 화면을 재생성하기 위한 값. */
@@ -163,8 +122,6 @@ export interface GenerateUIResponse {
 export interface GroundIntentRequest {
   step: AdaptiveStep;
   transcript: string;
-  korean_text?: string;
-  english_proxy_text?: string;
   menu_context: MenuItem[];
   selected_item?: MenuItem | null;
   order_state?: AdaptiveOrderState;

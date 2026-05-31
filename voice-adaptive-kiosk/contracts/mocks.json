@@ -1,37 +1,8 @@
 {
-  "sampleAnalyzeResultElder": {
-    "transcript": "Can I get a latte",
-    "language": "en",
-    "age": {
-      "group": "sixties",
-      "years_est": 67,
-      "confidence": 0.72,
-      "child_prob": 0.02
-    },
-    "behavioral": {
-      "speech_rate": 2.8,
-      "silence_ratio": 0.46,
-      "filler_count": 2,
-      "assist_level": 2
-    },
+  "sampleAnalyzeResult": {
+    "transcript": "라떼 한 잔 주세요",
+    "language": "ko",
     "duration_ms": 1850
-  },
-  "sampleAnalyzeResultYouth": {
-    "transcript": "Can I get a latte",
-    "language": "en",
-    "age": {
-      "group": "twenties",
-      "years_est": 24,
-      "confidence": 0.81,
-      "child_prob": 0.01
-    },
-    "behavioral": {
-      "speech_rate": 5.6,
-      "silence_ratio": 0.08,
-      "filler_count": 0,
-      "assist_level": 0
-    },
-    "duration_ms": 920
   },
   "sampleMenu": {
     "restaurant": "OBA Cafe",
@@ -2177,9 +2148,7 @@
     ]
   },
   "sampleGenerateUIRequest": {
-    "transcript": "Can I get a latte",
-    "age_group": "senior_adult",
-    "assist_level": 2,
+    "transcript": "라떼 한 잔 주세요",
     "menu_context": [
       {
         "id": "caffe-latte-003",

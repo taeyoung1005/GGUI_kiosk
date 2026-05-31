@@ -17,21 +17,12 @@ import type {
 import raw from "./mocks.json";
 
 // ────────────────────────────────────────────────────────────
-// AnalyzeResult 샘플 — 동일 발화("Can I get a latte")의 두 변형.
-//   적응 증명: 같은 말이라도 화자에 따라 assist_level 이 갈린다.
+// AnalyzeResult 샘플 — 한국어 발화 전사 단일 변형.
+//   적응 강도는 항상 고령자 최대로 고정되므로 변형이 필요 없다.
 // ────────────────────────────────────────────────────────────
 
-/** 느린 어르신 변형 — senior_adult, assist_level 2 (보조 강화 UI). */
 export const sampleAnalyzeResult: AnalyzeResult =
-  raw.sampleAnalyzeResultElder as AnalyzeResult;
-
-/** 위와 동일하나 이름으로 명확히: 어르신 변형. */
-export const sampleAnalyzeResultElder: AnalyzeResult =
-  raw.sampleAnalyzeResultElder as AnalyzeResult;
-
-/** 빠른 청년 변형 — young_adult, assist_level 0 (압축된 일반 UI). */
-export const sampleAnalyzeResultYouth: AnalyzeResult =
-  raw.sampleAnalyzeResultYouth as AnalyzeResult;
+  raw.sampleAnalyzeResult as AnalyzeResult;
 
 // ────────────────────────────────────────────────────────────
 // Menu 샘플 (Module B)
@@ -62,8 +53,6 @@ export const sampleOrderResponse: OrderResponse =
 // 한 번에 가져오기 편하도록 묶음 export
 export const mocks = {
   sampleAnalyzeResult,
-  sampleAnalyzeResultElder,
-  sampleAnalyzeResultYouth,
   sampleMenu,
   sampleGenerateUIRequest,
   sampleGenerateUIResponse,

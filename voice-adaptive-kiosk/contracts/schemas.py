@@ -20,15 +20,6 @@ from pydantic import BaseModel, Field
 # 타입 별칭
 # ──────────────────────────────────────────────────────────────
 
-# 나이대 그룹 — Vox-Profile broad taxonomy + legacy mock labels.
-AgeGroup = Literal[
-    "young_adult", "adult", "senior_adult",
-    "child", "teens", "twenties", "thirties",
-    "forties", "fifties", "sixties", "seventies_plus", "unknown",
-]
-
-# UI 적응 강도 (주축 신호) 0~3
-AssistLevel = Literal[0, 1, 2, 3]
 AdaptiveStep = Literal["recommend", "options", "fulfillment", "loyalty", "payment", "confirm"]
 FulfillmentMode = Literal["Dine In", "Take Out"]
 LoyaltyMode = Literal["scan", "phone", "none"]
@@ -51,35 +42,14 @@ GroundIntentName = Literal[
 # ──────────────────────────────────────────────────────────────
 
 
-class AgeInfo(BaseModel):
-    """나이 분류 결과 (보조 신호)."""
-
-    group: AgeGroup
-    years_est: int = Field(..., description="추정 나이(년)")
-    confidence: float = Field(..., ge=0.0, le=1.0, description="분류 신뢰도 0~1")
-    child_prob: float = Field(..., ge=0.0, le=1.0, description="아동 화자 확률 0~1")
-
-
-class BehavioralInfo(BaseModel):
-    """행동신호 (적응 주축)."""
-
-    speech_rate: float = Field(..., description="발화 속도(음절/초). 낮을수록 느림")
-    silence_ratio: float = Field(
-        ..., ge=0.0, le=1.0, description="침묵 비율 0~1. 높을수록 머뭇거림"
-    )
-    filler_count: int = Field(..., ge=0, description='채움말("음","어"…) 횟수')
-    assist_level: AssistLevel = Field(
-        ..., description="UI 적응 강도 0=일반 … 3=최대 보조"
-    )
-
-
 class AnalyzeResult(BaseModel):
-    """음성 → 전사 + 나이대 + 행동신호. Module A /analyze 응답."""
+    """음성 → 전사(transcript). Module A /analyze 응답.
 
-    transcript: str = Field(..., description='STT 전사. 예: "라떼 하나 주세요"')
+    적응 강도는 항상 고령자 최대로 고정되므로 나이/행동신호는 계약에 싣지 않는다.
+    """
+
+    transcript: str = Field(..., description='STT 전사. 예: "라떼 한 잔 주세요"')
     language: str = Field(default="ko", description="언어 코드. 한국어 기본")
-    age: AgeInfo
-    behavioral: BehavioralInfo
     duration_ms: int = Field(..., ge=0, description="입력 오디오 길이(ms)")
 
 
@@ -132,8 +102,6 @@ class AdaptiveOrderState(BaseModel):
 
 class GenerateUIRequest(BaseModel):
     transcript: str
-    age_group: AgeGroup
-    assist_level: AssistLevel
     menu_context: List[MenuItem] = Field(
         default_factory=list, description="후보 또는 전체 메뉴 컨텍스트"
     )
@@ -157,8 +125,6 @@ class GenerateUIResponse(BaseModel):
 class GroundIntentRequest(BaseModel):
     step: AdaptiveStep
     transcript: str
-    korean_text: str | None = None
-    english_proxy_text: str | None = None
     menu_context: List[MenuItem] = Field(default_factory=list)
     selected_item: MenuItem | None = None
     order_state: AdaptiveOrderState | None = None
@@ -206,15 +172,11 @@ class OrderResponse(BaseModel):
 
 
 __all__ = [
-    "AgeGroup",
-    "AssistLevel",
     "AdaptiveStep",
     "FulfillmentMode",
     "LoyaltyMode",
     "PaymentMethod",
     "GroundIntentName",
-    "AgeInfo",
-    "BehavioralInfo",
     "AnalyzeResult",
     "MenuOptionChoice",
     "MenuOption",
