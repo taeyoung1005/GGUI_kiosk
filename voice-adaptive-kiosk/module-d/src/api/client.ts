@@ -1,7 +1,7 @@
 // src/api/client.ts
 //
-// Module A(/analyze) · B(/menu,/orders) · C(/generate-ui) 호출 클라이언트.
-// VITE_USE_MOCK=true 면 contracts/mocks 고정 데이터로 대체 → 백엔드/키 없이 흐름이 돈다.
+// Module A(/realtime/session) · B(/menu,/orders) · C(/generate-ui) 호출 클라이언트.
+// VITE_USE_MOCK=true 면 contracts/mocks 고정 데이터로 대체해 UI 흐름을 확인한다.
 //
 // 정본 계약 타입은 루트 contracts/types.ts 를 직접 import (@contracts alias).
 
@@ -64,7 +64,7 @@ async function fetchWithTimeout(
 }
 
 // ────────────────────────────────────────────────────────────
-// Module A — POST /analyze  (audio → AnalyzeResult)
+// Module A — Realtime transcript → AnalyzeResult
 // ────────────────────────────────────────────────────────────
 
 export interface AnalyzeOptions {
@@ -76,10 +76,9 @@ export interface AnalyzeOptions {
  * 음성 입력을 전사(transcript)로만 환원한다. 실시간 STT(Realtime)는 브라우저가
  * 직접 OpenAI에 붙어 최종 transcript를 받아오므로, 여기서는 그 transcript를
  * AnalyzeResult로 감싸 멀티턴 상태기계에 흘려보내는 역할만 한다.
- * 오디오 Blob을 넘기면 Module A(/analyze)로 한 번 STT를 돌릴 수도 있다(폴백).
  */
 export async function analyze(
-  audio: Blob | null,
+  _audio: Blob | null,
   opts: AnalyzeOptions = {},
 ): Promise<AnalyzeResult> {
   if (opts.transcript !== undefined) {
@@ -91,22 +90,7 @@ export async function analyze(
     return sampleAnalyzeResult;
   }
 
-  if (!audio) throw new Error("analyze: 오디오가 비어 있습니다.");
-
-  const form = new FormData();
-  const filename = audio.type.includes("wav") ? "audio.wav" : "audio.webm";
-  form.append("file", audio, filename);
-
-  const headers: Record<string, string> = {};
-  if (ANALYZE_API_KEY) headers["Authorization"] = `Bearer ${ANALYZE_API_KEY}`;
-
-  const res = await fetchWithTimeout(`${ANALYZE_URL}/analyze`, {
-    method: "POST",
-    body: form,
-    headers,
-  });
-  if (!res.ok) throw new Error(`analyze failed: ${res.status}`);
-  return (await res.json()) as AnalyzeResult;
+  throw new Error("analyze: Realtime transcript가 필요합니다.");
 }
 
 // ────────────────────────────────────────────────────────────

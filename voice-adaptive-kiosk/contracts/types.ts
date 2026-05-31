@@ -1,25 +1,25 @@
 // 공유 데이터 계약 (canonical) — contracts/types.ts
 //
 // OBA Weekend-thon · 음성 적응형 키오스크 (GGUI 트랙)
-// 모듈 A(AI)·B(메뉴/주문)·C(GGUI 생성)·D(웹 프론트)가 이 형태에만 합의하고
+// 모듈 A(Realtime token)·B(메뉴/주문)·C(GGUI 생성)·D(웹 프론트)가 이 형태에만 합의하고
 // 서로를 mock 하며 병렬 개발한다. 이 파일이 "정본(canonical)"이며,
 // schemas.py(파이썬 미러)와 mocks.ts/mocks.json 은 항상 이 정의를 따른다.
 //
-// 흐름: D --audio--> A(/analyze) --> B(/menu) --> C(/generate-ui) --> D(embed)
+// 흐름: D --Realtime transcript--> B(/menu) --> C(/generate-ui) --> D(embed)
 //       D --확정--> B(/orders, mock 결제)
 
 // ────────────────────────────────────────────────────────────
-// AnalyzeResult  (Module A → Module D)
-//   음성 → 전사(transcript). 적응 강도는 항상 고령자 최대로 고정되므로
+// AnalyzeResult  (Realtime transcript wrapper)
+//   OpenAI Realtime 최종 전사. 적응 강도는 항상 고령자 최대로 고정되므로
 //   나이/행동신호는 더 이상 계약에 싣지 않는다.
 // ────────────────────────────────────────────────────────────
 
 export interface AnalyzeResult {
-  /** STT 전사 텍스트. 예: "라떼 한 잔 주세요" */
+  /** 전사 텍스트. 예: "라떼 한 잔 주세요" */
   transcript: string;
   /** 언어 코드. 한국어 기본 → "ko" */
   language: string;
-  /** 입력 오디오 길이(ms) */
+  /** 전사 처리 길이(ms). Realtime 주입 경로는 0. */
   duration_ms: number;
 }
 
@@ -107,7 +107,7 @@ export interface GenerateUIRequest {
 export interface GenerateUIResponse {
   /** 생성된 렌더 식별자 */
   render_id: string;
-  /** @ggui-ai/react 로 임베드할 URL. 예: "http://localhost:6781/r/sH9xK" */
+  /** iframe 으로 임베드할 URL. 예: "http://localhost:6781/r/sH9xK" */
   embed_url: string;
   /** 사용자 액션 정의(actionSpec 등). 형태는 GGUI 런타임에 위임 → any */
   contract: any;

@@ -95,7 +95,7 @@ export function buildGguiProps({ step, profile, candidates, item, selectedOption
 /**
  * GGUI MCP 서버를 통해 적응 UI 를 생성한다.
  * @returns {Promise<{render_id:string, embed_url:string, contract:any}>}
- * @throws GGUI 미가동/키 없음/응답 이상 시 → server.js 가 LOCAL 폴백으로 잡는다.
+ * @throws GGUI 미가동/OPENAI_API_KEY 미설정/응답 이상 시 → server.js 가 LOCAL 폴백으로 잡는다.
  */
 export async function generateViaGgui(req, env) {
   const {

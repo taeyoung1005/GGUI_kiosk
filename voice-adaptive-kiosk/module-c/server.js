@@ -25,12 +25,13 @@ import { renderLocalHtml } from "./src/local-render.js";
 import { consumeGguiEvents, generateViaGgui } from "./src/ggui-client.js";
 import { groundIntent, normalizeGroundIntentRequest } from "./src/ground-intent.js";
 
-// ── .env.local / .env 경량 로더 (의존성 없이; 이미 set 된 process.env 는 덮어쓰지 않음) ──
-//   우선순위: 셸 export > .env.local > .env
+// ── 루트 .env.local / .env 경량 로더 (의존성 없이; 이미 set 된 process.env 는 덮어쓰지 않음) ──
+//   우선순위: 셸 export > 루트 .env.local > 루트 .env
 function loadDotEnv() {
   const dir = dirname(fileURLToPath(import.meta.url));
+  const rootDir = join(dir, "..");
   for (const name of [".env.local", ".env"]) {
-    const path = join(dir, name);
+    const path = join(rootDir, name);
     if (!existsSync(path)) continue;
     for (const raw of readFileSync(path, "utf8").split(/\r?\n/)) {
       const line = raw.trim();
@@ -53,7 +54,7 @@ loadDotEnv();
 
 // ── 환경 (.env 로딩 후 process.env 반영) ───────────────────────────
 const ENV = {
-  PORT: Number(process.env.PORT || 8002),
+  PORT: Number(process.env.PORT || process.env.GGUI_WRAPPER_PORT || 8002),
   GGUI_MODE: (process.env.GGUI_MODE || "local").toLowerCase(),
   OPENAI_API_KEY: process.env.OPENAI_API_KEY || "",
   GGUI_URL: process.env.GGUI_URL || "http://localhost:6781",

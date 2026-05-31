@@ -2,6 +2,8 @@ __pycache__/
 *.py[cod]
 .DS_Store
 tmp/
+MEMORY.md
+**/MEMORY.md
 
 module-a/.env
 module-a/.venv/

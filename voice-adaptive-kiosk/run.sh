@@ -2,13 +2,13 @@
 # ============================================================
 # Giosk — 음성 적응형 키오스크 · 전체 기동 스크립트 (A/B/C/D)
 # ------------------------------------------------------------
-#   A: uvicorn (Python · FastAPI · :8000)  ← OpenAI Realtime 세션 중계(/realtime/session) + STT 폴백(/analyze)
+#   A: uvicorn (Python · FastAPI · :8000)  ← OpenAI Realtime 세션 중계(/realtime/session)
 #   B: node    (Express     · :8001)        ← 메뉴/주문
 #   C: node    (Express     · :8002)        ← GGUI 적응 UI 생성 (키 있으면 GGUI 라이브, 없으면 LOCAL 폴백)
-#   D: vite    (React 프론트 · :5173)        ← VITE_USE_MOCK 은 module-d/.env 로 제어
+#   D: vite    (React 프론트 · :5173)        ← VITE_* 는 루트 .env 로 제어
 #
 # BYOK: OPENAI_API_KEY 가 있으면 GGUI 라이브(기본)로, 없으면 LOCAL 폴백으로 동작한다.
-#   키는 루트 .env 또는 module-c/.env 에 둔다(.gitignore 로 보호 — 절대 git 에 올리지 않는다).
+#   키는 루트 .env 에 둔다(.gitignore 로 보호 — 절대 git 에 올리지 않는다).
 #   키가 있으면 GGUI MCP 서버(:6781)도 필요할 때 자동 기동한다(이미 떠 있으면 재사용).
 #
 # 4개 모듈을 백그라운드로 띄우고 헬스체크 후 안내를 출력한다.
@@ -25,6 +25,34 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG_DIR="${ROOT}/.run-logs"
 mkdir -p "${LOG_DIR}"
+
+load_env_file() {
+  local file="$1"
+  [[ -f "${file}" ]] || return 0
+  while IFS= read -r raw || [[ -n "${raw}" ]]; do
+    local line key val
+    line="${raw#"${raw%%[![:space:]]*}"}"
+    line="${line%"${line##*[![:space:]]}"}"
+    [[ -z "${line}" || "${line}" == \#* || "${line}" != *=* ]] && continue
+    key="${line%%=*}"
+    key="${key%"${key##*[![:space:]]}"}"
+    val="${line#*=}"
+    val="${val#"${val%%[![:space:]]*}"}"
+    val="${val%"${val##*[![:space:]]}"}"
+    if [[ "${val}" == \"*\" && "${val}" == *\" ]]; then
+      val="${val:1:${#val}-2}"
+    elif [[ "${val}" == \'*\' && "${val}" == *\' ]]; then
+      val="${val:1:${#val}-2}"
+    fi
+    if [[ -z "${!key+x}" ]]; then
+      export "${key}=${val}"
+    fi
+  done < "${file}"
+}
+
+# 루트 env 하나만 로드한다. .env.local 이 .env 보다 우선.
+load_env_file "${ROOT}/.env.local"
+load_env_file "${ROOT}/.env"
 
 PORT_A="${ANALYZE_PORT:-8000}"
 PORT_B="${MENU_PORT:-8001}"
@@ -54,30 +82,17 @@ fi
 WITH_A=1
 [[ "${1:-}" == "--no-a" ]] && WITH_A=0
 
-# ── OPENAI_API_KEY 탐지 (env > 루트 .env(.local) > module-c .env(.local)) ──
-#   GGUI_MODE 기본값 결정 + GGUI 서버/모듈에 키 전달용. 모듈도 각자 .env 를 읽지만,
-#   GGUI MCP 서버(npx)는 레포 .env 를 모르므로 여기서 export 해 물려준다.
+# ── OPENAI_API_KEY 탐지 (env > 루트 .env(.local)) ──
+#   GGUI_MODE 기본값 결정 + GGUI 서버/모듈에 키 전달용. GGUI MCP 서버(npx)는
+#   레포 .env 를 직접 읽지 않으므로 여기서 export 해 물려준다.
 PLACEHOLDER_KEY="sk-your-openai-key-here"
-read_env_key() { # $1=파일경로 → OPENAI_API_KEY 값(없으면 빈 문자열)
-  [[ -f "$1" ]] || return 0
-  grep -E '^[[:space:]]*OPENAI_API_KEY[[:space:]]*=' "$1" 2>/dev/null \
-    | tail -1 \
-    | sed -E 's/^[^=]*=[[:space:]]*//; s/^"//; s/"$//; s/^'\''//; s/'\''$//' \
-    || true
-}
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  for f in "${ROOT}/.env.local" "${ROOT}/.env" "${ROOT}/module-c/.env.local" "${ROOT}/module-c/.env"; do
-    k="$(read_env_key "$f")"
-    if [[ -n "${k}" ]]; then OPENAI_API_KEY="${k}"; break; fi
-  done
-fi
 KEY_PRESENT=0
 if [[ -n "${OPENAI_API_KEY:-}" && "${OPENAI_API_KEY}" != "${PLACEHOLDER_KEY}" ]]; then
   KEY_PRESENT=1
   export OPENAI_API_KEY
 fi
 
-# ── GGUI_MODE 기본값: 키 있으면 ggui(라이브 메인), 없으면 local(즉시·무키) ──
+# ── GGUI_MODE 기본값: OPENAI_API_KEY 설정 여부에 따라 ggui/local 자동 선택 ──
 if [[ -z "${GGUI_MODE:-}" ]]; then
   if [[ "${KEY_PRESENT}" == "1" ]]; then GGUI_MODE="ggui"; else GGUI_MODE="local"; fi
 fi
@@ -168,7 +183,7 @@ log "$(color '1;32' '기동 완료.')  데모 → $(color '1;4;36' "http://local
 echo "       A=/health:${PORT_A}  B=/menu:${PORT_B}  C=/generate-ui:${PORT_C}  D=:${PORT_D}  (GGUI_MODE=${GGUI_MODE})"
 echo "       로그: ${LOG_DIR}/{A,B,C,D,GGUI}.log    종료: Ctrl-C  (또는  bash run.sh stop)"
 if [[ "${KEY_PRESENT}" != "1" ]]; then
-  echo "       $(color '1;33' '키 없음') — LOCAL 모드로 체험 중. GGUI 라이브는 .env 에 OPENAI_API_KEY 를 넣고 다시 실행."
+  echo "       $(color '1;33' 'OPENAI_API_KEY 미설정') — LOCAL 모드. GGUI 라이브는 .env 에 OPENAI_API_KEY 를 넣고 다시 실행."
 fi
 echo ""
 

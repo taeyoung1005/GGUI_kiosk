@@ -4,7 +4,7 @@
 > Node(ESM) + Express. 메뉴 데이터 제공 + 주문 + **mock 결제**(항상 `status:"paid"`).
 > 공유 계약: 루트 `contracts/types.ts` 의 `Menu` / `MenuItem` / `OrderRequest` / `OrderResponse` 를 그대로 따름.
 
-이 모듈은 **외부 의존성·API 키 없이 즉시 기동**된다. 메뉴는 `data/menu.seed.json` 을
+이 모듈은 외부 API 호출 없이 기동된다. 메뉴는 `data/menu.seed.json` 을
 in-memory 로 로드하고, 주문은 in-memory 로 보관한다(서버 재시작 시 초기화).
 
 ---
@@ -17,12 +17,11 @@ npm install          # express, cors 설치
 node server.js       # → http://localhost:8001
 ```
 
-포트를 바꾸려면 (기본 8001, SPEC §7 포트맵):
+포트를 바꾸려면 (기본 8001):
 
 ```bash
-PORT=8001 node server.js
-# 또는 .env.example 을 .env 로 복사 후 PORT 수정
-cp .env.example .env
+MENU_PORT=8001 node server.js
+# 전체 앱 기준 설정은 루트 .env 에 MENU_PORT=8001 로 둔다.
 ```
 
 개발 중 자동 재시작이 필요하면(Node 18+):
@@ -33,7 +32,7 @@ npm run dev          # node --watch server.js
 
 ---
 
-## 엔드포인트 (SPEC §3.2)
+## 엔드포인트
 
 | 메서드 | 경로 | 설명 | 응답 |
 |--------|------|------|------|

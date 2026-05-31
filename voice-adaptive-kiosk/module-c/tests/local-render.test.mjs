@@ -25,7 +25,7 @@ test("local render is always fixed at the senior-friendly mode with a coach pane
   assert.doesNotMatch(html, /age-mode-comfort/);
 });
 
-test("local render uses Korean browser speech synthesis (no ElevenLabs proxy)", () => {
+test("local render uses Korean browser speech synthesis without external proxy", () => {
   const html = renderLocalHtml({
     step: "recommend",
     profile: resolveProfile(),

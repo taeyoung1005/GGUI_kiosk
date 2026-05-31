@@ -1895,6 +1895,82 @@ button:disabled {
   line-height: 1.35;
 }
 
+.conversation-end {
+  min-height: 52px;
+  margin-top: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.32);
+  border-radius: 8px;
+  background: #fff;
+  color: var(--scene-deep);
+  font-size: calc(var(--a-fs) * 0.68);
+  font-weight: 950;
+}
+
+.agent-captions {
+  display: grid;
+  grid-template-columns: minmax(160px, 0.7fr) minmax(0, 1fr) minmax(0, 1fr);
+  gap: 10px;
+  padding: 12px clamp(14px, 2vw, 24px);
+  border-bottom: 2px solid rgba(23, 53, 43, 0.14);
+  background: #eef4ea;
+  color: var(--scene-ink, #17201d);
+}
+
+.overlay .agent-captions {
+  width: min(840px, 100%);
+  border: 2px solid rgba(23, 53, 43, 0.14);
+  border-radius: 8px;
+}
+
+.agent-listening,
+.agent-caption {
+  min-height: 52px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: 1px solid rgba(23, 53, 43, 0.14);
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.78);
+  font-size: 16px;
+  font-weight: 900;
+}
+
+.agent-caption {
+  align-items: flex-start;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+}
+
+.agent-caption span {
+  color: #66706c;
+  font-size: 12px;
+  font-weight: 950;
+}
+
+.agent-caption strong {
+  max-width: 100%;
+  color: var(--scene-ink, #17201d);
+  font-size: 17px;
+  line-height: 1.25;
+  overflow-wrap: anywhere;
+}
+
+.agent-caption.assistant {
+  border-color: rgba(9, 107, 79, 0.24);
+  background: #f7fff8;
+}
+
+.listening-dot {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
+  border-radius: 50%;
+  background: #0f8b61;
+  box-shadow: 0 0 0 6px rgba(15, 139, 97, 0.15);
+}
+
 .question {
   margin: 2px 0 var(--a-gap);
   color: var(--scene-ink);
@@ -2150,6 +2226,10 @@ button:disabled {
   align-items: center;
 }
 
+.multi-turn.single {
+  grid-template-columns: 1fr;
+}
+
 .multi-turn .mic-btn {
   min-height: 64px;
   font-size: calc(var(--a-fs) * 0.7);
@@ -2341,6 +2421,10 @@ button:disabled {
 
   .multi-turn {
     grid-template-columns: 1fr 1fr;
+  }
+
+  .agent-captions {
+    grid-template-columns: 1fr;
   }
 
   .care-panel {

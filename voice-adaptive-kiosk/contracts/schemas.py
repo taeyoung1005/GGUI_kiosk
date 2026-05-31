@@ -1,11 +1,11 @@
 """공유 데이터 계약 — pydantic v2 미러 (contracts/schemas.py).
 
-contracts/types.ts(정본)를 파이썬으로 미러한 것. Module A(FastAPI)에서 import 하여
-요청/응답 검증·직렬화에 사용한다. 정본이 바뀌면 이 파일도 함께 갱신한다.
+contracts/types.ts(정본)를 파이썬으로 미러한 것. Python 쪽에서 계약 검증이 필요할 때
+사용한다. 정본이 바뀌면 이 파일도 함께 갱신한다.
 
-사용 예 (Module A):
+사용 예:
     from contracts.schemas import AnalyzeResult
-    return AnalyzeResult(...)   # FastAPI response_model 로도 사용 가능
+    AnalyzeResult.model_validate(payload)
 
 코드 식별자는 영어, 주석/문서는 한국어 OK.
 """
@@ -38,12 +38,12 @@ GroundIntentName = Literal[
 
 
 # ──────────────────────────────────────────────────────────────
-# AnalyzeResult  (Module A → Module D)
+# AnalyzeResult  (Realtime transcript wrapper)
 # ──────────────────────────────────────────────────────────────
 
 
 class AnalyzeResult(BaseModel):
-    """음성 → 전사(transcript). Module A /analyze 응답.
+    """OpenAI Realtime 최종 transcript 를 프론트 상태기계에 넘기는 형태.
 
     적응 강도는 항상 고령자 최대로 고정되므로 나이/행동신호는 계약에 싣지 않는다.
     """
@@ -112,7 +112,7 @@ class GenerateUIRequest(BaseModel):
 
 class GenerateUIResponse(BaseModel):
     render_id: str
-    embed_url: str = Field(..., description="@ggui-ai/react 로 임베드할 URL")
+    embed_url: str = Field(..., description="iframe 으로 임베드할 URL")
     # GGUI 런타임이 정의하는 actionSpec 등 자유 형식 → dict(any)
     contract: dict = Field(default_factory=dict)
 

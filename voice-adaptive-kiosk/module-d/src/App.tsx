@@ -7,7 +7,7 @@
 // StaticKiosk 안의 상시 음성 주문 버튼이 음성 흐름을 시작하면 voice phase 로 전환되고,
 // 흐름이 끝나거나 취소되면(phase=idle) 다시 kiosk phase 로 복귀한다.
 //
-// mock 모드(VITE_USE_MOCK)면 백엔드/키 없이 전체 흐름이 화면에서 돈다.
+// mock 모드(VITE_USE_MOCK)면 고정 데이터로 전체 흐름이 화면에서 돈다.
 
 import { useEffect, useMemo, useState } from "react";
 import StaticKiosk from "./ui/StaticKiosk";
@@ -16,6 +16,7 @@ import { Orchestrator, type FlowState, initialFlowState } from "./flow/orchestra
 import "./styles.css";
 
 type AppMode = "kiosk" | "voice";
+const CONVERSATIONAL = import.meta.env.VITE_CONVERSATIONAL !== "false";
 
 const STEP_ORDER: { key: string; label: string }[] = [
   { key: "voice", label: "음성 주문" },
@@ -47,7 +48,9 @@ export default function App() {
   }, [state.phase, state.step]);
 
   function startVoice() {
-    if (state.phase === "adaptive") {
+    if (CONVERSATIONAL) {
+      void flow.startConversation();
+    } else if (state.phase === "adaptive") {
       flow.respeak();
     } else {
       flow.startVoiceOrder();

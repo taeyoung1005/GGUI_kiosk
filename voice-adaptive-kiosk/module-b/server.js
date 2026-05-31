@@ -1,7 +1,7 @@
 // Module B — 메뉴/주문 백엔드 (Node ESM + Express)
 //
 // OBA Weekend-thon · 음성 적응형 키오스크 (GGUI 트랙)
-// SPEC §3 준수. contracts/types.ts 의 Menu / MenuItem / OrderRequest / OrderResponse 형태를 그대로 따른다.
+// contracts/types.ts 의 Menu / MenuItem / OrderRequest / OrderResponse 형태를 그대로 따른다.
 //
 // 엔드포인트
 //   GET  /menu                  → Menu
@@ -20,11 +20,12 @@ import { fileURLToPath } from "node:url";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 
-// ── .env.local / .env 경량 로더 (의존성 없이; 이미 set 된 process.env 우선) ──
-//   우선순위: 셸 export > .env.local > .env
+// ── 루트 .env.local / .env 경량 로더 (의존성 없이; 이미 set 된 process.env 우선) ──
+//   우선순위: 셸 export > 루트 .env.local > 루트 .env
 function loadDotEnv() {
+  const rootDir = join(__dirname, "..");
   for (const name of [".env.local", ".env"]) {
-    const p = join(__dirname, name);
+    const p = join(rootDir, name);
     if (!existsSync(p)) continue;
     for (const raw of readFileSync(p, "utf8").split(/\r?\n/)) {
       const line = raw.trim();
@@ -45,7 +46,7 @@ function loadDotEnv() {
 }
 loadDotEnv();
 
-const PORT = process.env.PORT || 8001;
+const PORT = process.env.PORT || process.env.MENU_PORT || 8001;
 const OPTIONAL_UPGRADES = [
   { type: "Set Upgrade", label: "Set dessert", priceDelta: 3000 },
   { type: "Combo Upgrade", label: "Large size combo", priceDelta: 1500 },
@@ -204,7 +205,7 @@ app.post("/orders", async (req, res) => {
     return res.status(400).json({ error: "유효한 메뉴 항목이 없습니다", invalid_item_ids: invalid });
   }
 
-  // 결제 지연 애니메이션용 1~2초 지연 (SPEC §3.3)
+  // 결제 지연 애니메이션용 1~2초 지연.
   await sleep(paymentDelayMs());
 
   const order_id = `ord-${++orderSeq}`;

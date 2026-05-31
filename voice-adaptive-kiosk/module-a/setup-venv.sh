@@ -21,4 +21,4 @@ echo "[setup-venv] pip 업그레이드 + 의존성 설치 (requirements.txt)"
 .venv/bin/python -m pip install --upgrade pip >/dev/null
 .venv/bin/python -m pip install -r requirements.txt
 
-echo "[setup-venv] 완료 — Module A(Realtime 중계/STT 폴백) 준비됨."
+echo "[setup-venv] 완료 — Module A(Realtime 세션 중계) 준비됨."

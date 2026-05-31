@@ -3,7 +3,7 @@
 // 적응 UI — 음성 주문(voice phase) 본체. Module C(/generate-ui)의 결과를 그린다.
 //
 // 두 가지 렌더 경로:
-//   1) embed_url(또는 GGUI html)이 있으면 → @ggui-ai/react 임베드(가능 시) 또는 iframe.
+//   1) embed_url(또는 GGUI html)이 있으면 → iframe.
 //   2) embed_url 이 비어 있으면(mock/폴백) → 내장 적응 렌더러로 동일 구조를 직접 그린다.
 //
 // 적응 강도는 항상 고령자 친화 최대로 고정한다(큰 글씨 + 2장 카드 + 음성 안내 상시).
@@ -116,7 +116,8 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
       <div className="overlay">
         <div className="spinner" />
         <div className="big">{state.message}</div>
-        <VoiceControlBar flow={flow} />
+        <AgentCaptions state={state} />
+        {!state.conversational && <VoiceControlBar flow={flow} />}
       </div>
     );
   }
@@ -166,6 +167,7 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
       Boolean((embedUrl || gguiHtml) && !embedTimedOut);
     return (
       <div className="adaptive">
+        <AgentCaptions state={state} />
         {useEmbed ? (
           <GGUIEmbedFrame url={embedUrl} html={gguiHtml} meta={gguiMeta} />
         ) : (
@@ -185,7 +187,7 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
 }
 
 // ────────────────────────────────────────────────────────────
-// GGUI 임베드: @ggui-ai/react 가 있으면 사용, 없으면 iframe.
+// GGUI 임베드: iframe/srcDoc 경로만 사용한다.
 // ────────────────────────────────────────────────────────────
 function GGUIEmbedFrame({
   url,
@@ -347,7 +349,16 @@ function BuiltInAdaptive({
         <aside className="care-panel">
           <div className="care-kicker">음성 도우미</div>
           <strong>{carePanelCopy(state)}</strong>
-          <span>큰 글씨로 두 가지만 먼저 보여 드려요.</span>
+          <span>
+            {state.conversational
+              ? "비서가 듣고 말하면서 화면을 자동으로 넘겨 드려요."
+              : "큰 글씨로 두 가지만 먼저 보여 드려요."}
+          </span>
+          {state.conversational && (
+            <button className="conversation-end" type="button" onClick={() => flow.endConversation()}>
+              대화 종료
+            </button>
+          )}
         </aside>
       </div>
     </section>
@@ -387,7 +398,7 @@ function RecommendStep({
           </button>
         ))}
       </div>
-      <MultiTurnBar flow={flow} />
+      <MultiTurnBar flow={flow} state={state} />
     </div>
   );
 }
@@ -447,7 +458,7 @@ function OptionsStep({
           계속하기
         </button>
       </div>
-      <MultiTurnBar flow={flow} />
+      <MultiTurnBar flow={flow} state={state} />
     </div>
   );
 }
@@ -480,7 +491,7 @@ function FulfillmentStep({
           <span>가져가실 수 있게 포장해요</span>
         </button>
       </div>
-      <MultiTurnBar flow={flow} />
+      <MultiTurnBar flow={flow} state={state} />
     </div>
   );
 }
@@ -511,7 +522,7 @@ function LoyaltyStep({
           <span>쿠폰·적립 없이</span>
         </button>
       </div>
-      <MultiTurnBar flow={flow} />
+      <MultiTurnBar flow={flow} state={state} />
     </div>
   );
 }
@@ -541,7 +552,7 @@ function PaymentStep({
           </button>
         ))}
       </div>
-      <MultiTurnBar flow={flow} />
+      <MultiTurnBar flow={flow} state={state} />
     </div>
   );
 }
@@ -599,14 +610,46 @@ function ConfirmStep({
           네, 결제할게요
         </button>
       </div>
-      <MultiTurnBar flow={flow} />
+      <MultiTurnBar flow={flow} state={state} />
     </div>
   );
 }
 
-// 멀티턴(재발화) 막대 — 음성 버튼 상시 + 처음으로 하단.
-// 데모용 텍스트 입력은 OpenAI Realtime 2초 침묵 자동종료가 대체하므로 제거했다.
-function MultiTurnBar({ flow }: { flow: Orchestrator }) {
+function AgentCaptions({ state }: { state: FlowState }) {
+  if (!state.conversational && !state.userTranscript && !state.assistantText) return null;
+  return (
+    <div className="agent-captions" aria-live="polite">
+      <div className="agent-listening">
+        <span className="listening-dot" />
+        계속 듣고 있어요
+      </div>
+      {state.userTranscript && (
+        <div className="agent-caption user">
+          <span>손님</span>
+          <strong>{state.userTranscript}</strong>
+        </div>
+      )}
+      {state.assistantText && (
+        <div className="agent-caption assistant">
+          <span>비서</span>
+          <strong>{state.assistantText}</strong>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// 멀티턴(재발화) 막대 — 단계형 폴백에서는 다시 말하기, 대화형에서는 종료만.
+function MultiTurnBar({ flow, state }: { flow: Orchestrator; state: FlowState }) {
+  if (state.conversational) {
+    return (
+      <div className="multi-turn single">
+        <button className="mic-btn secondary" type="button" onClick={() => flow.endConversation()}>
+          대화 종료
+        </button>
+      </div>
+    );
+  }
   return (
     <div className="multi-turn">
       <button className="mic-btn" type="button" onClick={() => flow.respeak()}>

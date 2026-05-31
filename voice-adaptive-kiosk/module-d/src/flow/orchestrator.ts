@@ -20,6 +20,7 @@ import type {
   OrderResponse,
 } from "@contracts/types";
 import {
+  USE_MOCK,
   analyze,
   getMenu,
   searchMenu,
@@ -27,8 +28,10 @@ import {
   groundIntent,
   createOrder,
 } from "../api/client";
+import { RealtimeAgent } from "../audio/realtimeAgent";
 import { RealtimeVoiceSession, isRealtimeSupported } from "../audio/realtime";
 import { speak, cancelSpeech } from "../audio/tts";
+import { FULFILLMENT_VALUES, LOYALTY_VALUES, PAYMENT_VALUES } from "./agentTools";
 import { interpretVoiceTurn } from "./voiceIntent";
 
 // ── 흐름 단계 ───────────────────────────────────────────────
@@ -65,6 +68,12 @@ export interface FlowState {
   order: OrderResponse | null;
   /** 오류 메시지 */
   error: string | null;
+  /** 대화형 에이전트가 들은 손님 최종 발화 */
+  userTranscript: string;
+  /** 대화형 에이전트의 응답 자막 */
+  assistantText: string;
+  /** Realtime function-calling agent 모드 여부 */
+  conversational: boolean;
 }
 
 export function initialFlowState(): FlowState {
@@ -80,6 +89,9 @@ export function initialFlowState(): FlowState {
     generated: null,
     order: null,
     error: null,
+    userTranscript: "",
+    assistantText: "",
+    conversational: false,
   };
 }
 
@@ -93,6 +105,8 @@ export class Orchestrator {
   /** 이번 음성 턴이 첫 발화인지(initial) 멀티턴 재발화인지(followup) */
   private voiceTurn: "initial" | "followup" = "initial";
   private menu: Menu | null = null;
+  private agent: RealtimeAgent | null = null;
+  private conversational = false;
 
   // ── 구독 ─────────────────────────────────────────────────
   subscribe(fn: Listener): () => void {
@@ -117,9 +131,49 @@ export class Orchestrator {
    */
   async startVoiceOrder(): Promise<void> {
     cancelSpeech();
+    this.conversational = false;
     this.reset(false);
     this.voiceTurn = "initial";
     await this.openVoiceSession();
+  }
+
+  /** 대화형 음성 주문 시작: 메뉴를 로드하고 에이전트가 운전할 추천 화면으로 진입한다. */
+  async startConversation(opts: { startAgent?: boolean } = {}): Promise<MenuItem[]> {
+    this.conversational = true;
+    cancelSpeech();
+    this.reset(false);
+    this.conversational = true;
+    if (!this.menu) this.menu = await getMenu();
+    const result: AnalyzeResult = { transcript: "", language: "ko", duration_ms: 0 };
+    const candidates = this.menu.items.slice(0, 8);
+    this.set({
+      analyze: result,
+      candidates,
+      phase: "adaptive",
+      step: "recommend",
+      message: "무엇을 도와드릴까요?",
+      userTranscript: "",
+      assistantText: "",
+      conversational: true,
+    });
+    if (opts.startAgent !== false && !USE_MOCK) {
+      this.agent = new RealtimeAgent(this.menu, {
+        onToolCall: (name, args) => this.runAgentTool(name, args),
+        onUserTranscript: (transcript) => this.set({ userTranscript: transcript }),
+        onAssistantText: (text) => this.set({ assistantText: text }),
+        onOpen: () => this.set({ message: "말씀해 주세요. 듣고 있어요." }),
+        onError: (message) => this.fail(message),
+      });
+      await this.agent.start();
+    }
+    return this.menu.items;
+  }
+
+  endConversation(): void {
+    this.agent?.close();
+    this.agent = null;
+    this.conversational = false;
+    this.reset(true);
   }
 
   /**
@@ -146,8 +200,11 @@ export class Orchestrator {
   /** 음성 흐름 취소 → idle 복귀(StaticKiosk). */
   cancel(): void {
     cancelSpeech();
+    this.agent?.close();
+    this.agent = null;
     this.voice?.close();
     this.voice = null;
+    this.conversational = false;
     this.voiceTurn = "initial";
     this.set({ ...initialFlowState() });
   }
@@ -233,6 +290,91 @@ export class Orchestrator {
   async submitVoiceTurn(transcript: string): Promise<void> {
     const result = this.state.analyze ?? await analyze(null, { transcript });
     await this.applyVoiceTranscript(transcript, { ...result, transcript });
+  }
+
+  /** Realtime function call을 기존 주문 상태기계 메서드로 실행한다. */
+  async runAgentTool(name: string, args: Record<string, any>): Promise<Record<string, any>> {
+    if (!this.menu) this.menu = await getMenu();
+    const byId = new Map(this.menu.items.map((item) => [item.id, item]));
+
+    switch (name) {
+      case "select_item": {
+        const item = byId.get(String(args.item_id));
+        if (!item) {
+          return {
+            ok: false,
+            error: "해당 item_id가 없습니다.",
+            valid_ids: [...byId.keys()].slice(0, 20),
+          };
+        }
+        await this.selectMenu(item);
+        return {
+          ok: true,
+          name: item.name,
+          price: item.price,
+          options: item.options.map((option) => ({
+            type: option.type,
+            choices: option.choices.map((choice) => ({
+              label: choice.label,
+              price_delta: choice.price_delta,
+            })),
+          })),
+          has_options: item.options.length > 0,
+        };
+      }
+      case "set_option": {
+        const item = this.state.selectedItem;
+        if (!item) return { ok: false, error: "먼저 select_item이 필요합니다." };
+        const option = item.options.find((candidate) => candidate.type === String(args.option_type));
+        const choice = option?.choices.find((candidate) => candidate.label === String(args.choice_label));
+        if (!option || !choice) {
+          return {
+            ok: false,
+            error: "옵션 type/label이 메뉴와 일치하지 않습니다.",
+            available: item.options.map((candidate) => ({
+              type: candidate.type,
+              choices: candidate.choices.map((candidateChoice) => candidateChoice.label),
+            })),
+          };
+        }
+        this.setOption(option.type, choice.label);
+        return {
+          ok: true,
+          selected_options: this.state.selectedOptions,
+          total: this.state.orderState.total,
+        };
+      }
+      case "set_fulfillment": {
+        const value = parseEnumValue(args.value, FULFILLMENT_VALUES, "Take Out");
+        await this.setFulfillment(value);
+        return { ok: true, fulfillment: value, total: this.state.orderState.total };
+      }
+      case "set_loyalty": {
+        const value = parseEnumValue(args.value, LOYALTY_VALUES, "none");
+        await this.setLoyalty(value);
+        return { ok: true, loyalty: value };
+      }
+      case "set_payment": {
+        const value = parseEnumValue(args.value, PAYMENT_VALUES, "Credit Card");
+        await this.setPaymentMethod(value);
+        return { ok: true, payment_method: value, total: this.state.orderState.total };
+      }
+      case "confirm_order": {
+        await this.placeOrder();
+        return {
+          ok: true,
+          order_id: this.state.order?.order_id ?? null,
+          total: this.state.order?.total ?? this.state.orderState.total,
+          status: this.state.order?.status ?? "paid",
+        };
+      }
+      case "cancel_order": {
+        this.reset(true);
+        return { ok: true };
+      }
+      default:
+        return { ok: false, error: `알 수 없는 도구: ${name}` };
+    }
   }
 
   private async applyVoiceTranscript(transcript: string, result: AnalyzeResult): Promise<void> {
@@ -460,7 +602,10 @@ export class Orchestrator {
    * (예: 추천 화면에서 "따뜻한 거로?" 라고 다시 말함)
    */
   async respeak(): Promise<void> {
+    if (this.conversational) return;
     cancelSpeech();
+    this.agent?.close();
+    this.agent = null;
     this.voice?.close();
     this.voice = null;
     this.voiceTurn = "followup";
@@ -470,11 +615,16 @@ export class Orchestrator {
   /** 처음으로(새 주문). */
   reset(toIdle = true): void {
     cancelSpeech();
+    this.agent?.close();
+    this.agent = null;
     this.voice?.close();
     this.voice = null;
     this.voiceTurn = "initial";
+    if (toIdle) this.conversational = false;
     const base = initialFlowState();
-    this.state = toIdle ? base : { ...base, phase: this.state.phase };
+    this.state = toIdle
+      ? base
+      : { ...base, phase: this.state.phase, conversational: this.conversational };
     if (toIdle) this.listeners.forEach((l) => l(this.state));
   }
 
@@ -497,10 +647,13 @@ export class Orchestrator {
   // ── 내부 헬퍼 ──────────────────────────────────────────────
   /** 한국어 음성 안내. 적응 강도는 항상 고령자 최대로 고정되므로 항상 읽어 준다. */
   private announce(text: string) {
+    if (this.conversational) return;
     speak(text);
   }
   private fail(msg: string) {
     cancelSpeech();
+    this.agent?.close();
+    this.agent = null;
     this.voice?.close();
     this.voice = null;
     this.set({
@@ -643,6 +796,15 @@ function possibleActionsForStep(step: AdaptiveStep): string[] {
   if (step === "loyalty") return ["set_loyalty", "skip_loyalty", "change", "cancel"];
   if (step === "payment") return ["set_payment", "change", "cancel"];
   return ["confirm", "change", "cancel"];
+}
+
+function parseEnumValue<T extends string>(
+  value: unknown,
+  allowed: readonly T[],
+  fallback: T,
+): T {
+  const candidate = String(value ?? "");
+  return allowed.includes(candidate as T) ? (candidate as T) : fallback;
 }
 
 /** mock/미지원 환경에서 첫 음성 주문을 대신하는 데모 발화. */
