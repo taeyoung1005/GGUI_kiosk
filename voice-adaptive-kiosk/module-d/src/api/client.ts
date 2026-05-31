@@ -6,7 +6,6 @@
 // 정본 계약 타입은 루트 contracts/types.ts 를 직접 import (@contracts alias).
 
 import type {
-  AgeGroup,
   AnalyzeResult,
   Menu,
   MenuItem,
@@ -18,8 +17,7 @@ import type {
   OrderResponse,
 } from "@contracts/types";
 import {
-  sampleAnalyzeResultElder,
-  sampleAnalyzeResultYouth,
+  sampleAnalyzeResult,
   sampleMenu,
   sampleGenerateUIResponse,
 } from "@contracts/mocks";
@@ -33,32 +31,12 @@ export const USE_MOCK =
     : ENV.VITE_USE_MOCK === "true" || ENV.VITE_USE_MOCK === "1";
 
 const ANALYZE_URL = ENV.VITE_ANALYZE_URL || "http://localhost:8000";
+const REALTIME_URL = ENV.VITE_REALTIME_URL || ANALYZE_URL;
 const MENU_URL = ENV.VITE_MENU_URL || "http://localhost:8001";
 const GGUI_URL = ENV.VITE_GGUI_URL || "http://localhost:8002";
 const ANALYZE_API_KEY = ENV.VITE_ANALYZE_API_KEY || "";
 
 const DEFAULT_TIMEOUT_MS = 8000;
-const DEFAULT_KOREAN_DEMO_TEXT = ENV.VITE_KOREAN_DEMO_TEXT || "라떼 한 잔 주세요";
-export type KoreanProxyVoiceChoice = "voice-1" | "voice-2";
-export const KOREAN_PROXY_VOICES: Array<{
-  id: KoreanProxyVoiceChoice;
-  label: string;
-  voiceId: string;
-  gender: "female" | "male";
-}> = [
-  {
-    id: "voice-1",
-    label: "Voice 1",
-    voiceId: "wGcFBfKz5yUQqhqr0mVy",
-    gender: "female",
-  },
-  {
-    id: "voice-2",
-    label: "Voice 2",
-    voiceId: "pqHfZKP75CvOlQylNhV4",
-    gender: "male",
-  },
-];
 const OPTIONAL_UPGRADES = [
   { type: "Set Upgrade", label: "Set dessert", priceDelta: 3000 },
   { type: "Combo Upgrade", label: "Large size combo", priceDelta: 1500 },
@@ -90,41 +68,31 @@ async function fetchWithTimeout(
 // ────────────────────────────────────────────────────────────
 
 export interface AnalyzeOptions {
-  /** mock 모드에서 어느 샘플을 쓸지: 어르신(느림) vs 청년(빠름). 적응 증명용. */
-  mockVariant?: "elder" | "youth";
-  /** mock 모드에서도 실제 Module A /analyze 를 호출해야 하는 녹음 기반 데모 경로. */
-  forceLive?: boolean;
-}
-
-export interface KoreanSeniorProxyAnalyzeResult {
-  korean_text: string;
-  english_proxy_text: string;
-  voice_id: string;
-  age: AnalyzeResult["age"];
-  behavioral: AnalyzeResult["behavioral"];
-  duration_ms: number;
-  audio_base64: string;
+  /** 직접 전사를 넘기면 STT를 건너뛰고 그대로 AnalyzeResult로 감싼다. */
+  transcript?: string;
 }
 
 /**
- * 오디오 Blob 을 /analyze 로 보내 분석 결과를 받는다.
- * mock 모드면 고정 AnalyzeResult(어르신/청년 변형)를 반환한다.
+ * 음성 입력을 전사(transcript)로만 환원한다. 실시간 STT(Realtime)는 브라우저가
+ * 직접 OpenAI에 붙어 최종 transcript를 받아오므로, 여기서는 그 transcript를
+ * AnalyzeResult로 감싸 멀티턴 상태기계에 흘려보내는 역할만 한다.
+ * 오디오 Blob을 넘기면 Module A(/analyze)로 한 번 STT를 돌릴 수도 있다(폴백).
  */
 export async function analyze(
   audio: Blob | null,
   opts: AnalyzeOptions = {},
 ): Promise<AnalyzeResult> {
-  if (USE_MOCK && !opts.forceLive) {
-    await delay(700); // STT+나이 추론 체감
-    return opts.mockVariant === "youth"
-      ? sampleAnalyzeResultYouth
-      : sampleAnalyzeResultElder;
+  if (opts.transcript !== undefined) {
+    return { transcript: opts.transcript, language: "ko", duration_ms: 0 };
   }
 
-  if (!audio) {
-    if (USE_MOCK) return mockKoreanOrderAnalyze(DEFAULT_KOREAN_DEMO_TEXT);
-    throw new Error("analyze: audio is empty.");
+  if (USE_MOCK) {
+    await delay(300);
+    return sampleAnalyzeResult;
   }
+
+  if (!audio) throw new Error("analyze: 오디오가 비어 있습니다.");
+
   const form = new FormData();
   const filename = audio.type.includes("wav") ? "audio.wav" : "audio.webm";
   form.append("file", audio, filename);
@@ -132,123 +100,51 @@ export async function analyze(
   const headers: Record<string, string> = {};
   if (ANALYZE_API_KEY) headers["Authorization"] = `Bearer ${ANALYZE_API_KEY}`;
 
-  try {
-    const res = await fetchWithTimeout(`${ANALYZE_URL}/analyze`, {
-      method: "POST",
-      body: form,
-      headers,
-    });
-    if (!res.ok) throw new Error(`analyze failed: ${res.status}`);
-    return (await res.json()) as AnalyzeResult;
-  } catch (error) {
-    if (USE_MOCK && opts.forceLive) return mockKoreanOrderAnalyze(DEFAULT_KOREAN_DEMO_TEXT);
-    throw error;
-  }
+  const res = await fetchWithTimeout(`${ANALYZE_URL}/analyze`, {
+    method: "POST",
+    body: form,
+    headers,
+  });
+  if (!res.ok) throw new Error(`analyze failed: ${res.status}`);
+  return (await res.json()) as AnalyzeResult;
 }
 
-export async function analyzeKoreanSeniorProxy(
-  text: string = DEFAULT_KOREAN_DEMO_TEXT,
-  voiceChoice: KoreanProxyVoiceChoice = "voice-1",
-): Promise<KoreanSeniorProxyAnalyzeResult> {
-  const voice = KOREAN_PROXY_VOICES.find((candidate) => candidate.id === voiceChoice) ?? KOREAN_PROXY_VOICES[0];
-  const body = { text, gender: voice.gender, voice_id: voice.voiceId };
+// ────────────────────────────────────────────────────────────
+// Module A — POST /realtime/session  (ephemeral client_secret 발급)
+// ────────────────────────────────────────────────────────────
+
+export interface RealtimeSession {
+  /** WebRTC 핸드셰이크에 Authorization: Bearer 로 쓸 1분짜리 임시 토큰 */
+  client_secret: string;
+  /** 사용할 realtime 모델명 */
+  model: string;
+  /** 만료 시각(Unix epoch seconds) */
+  expires_at: number;
+}
+
+/**
+ * 백엔드(Module A)에서 ephemeral client_secret을 발급받는다.
+ * 표준 OpenAI API 키는 백엔드에만 있고, 브라우저는 이 임시 토큰으로만 연결한다.
+ */
+export async function createRealtimeSession(): Promise<RealtimeSession> {
   const headers: Record<string, string> = { "Content-Type": "application/json" };
   if (ANALYZE_API_KEY) headers["Authorization"] = `Bearer ${ANALYZE_API_KEY}`;
 
-  if (USE_MOCK) {
-    try {
-      const res = await fetchWithTimeout(
-        `${ANALYZE_URL}/demo/korean-senior-proxy/analyze`,
-        {
-          method: "POST",
-          headers,
-          body: JSON.stringify(body),
-        },
-        1800,
-      );
-      if (res.ok) return (await res.json()) as KoreanSeniorProxyAnalyzeResult;
-    } catch {
-      // Mock mode must keep the browser demo runnable without Module A or ElevenLabs.
-    }
-    await delay(450);
-    return mockKoreanSeniorProxy(text, voice);
-  }
-
   const res = await fetchWithTimeout(
-    `${ANALYZE_URL}/demo/korean-senior-proxy/analyze`,
-    {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    },
-    30000,
+    `${REALTIME_URL}/realtime/session`,
+    { method: "POST", headers },
+    12000,
   );
-  if (!res.ok) throw new Error(`korean senior proxy analyze failed: ${res.status}`);
-  return (await res.json()) as KoreanSeniorProxyAnalyzeResult;
-}
-
-export function proxyAnalyzeToAnalyzeResult(
-  proxy: KoreanSeniorProxyAnalyzeResult,
-): AnalyzeResult {
-  return {
-    transcript: proxy.english_proxy_text,
-    language: "en",
-    age: proxy.age,
-    behavioral: proxy.behavioral,
-    duration_ms: proxy.duration_ms,
-  };
-}
-
-function mockKoreanSeniorProxy(
-  text: string,
-  voice: (typeof KOREAN_PROXY_VOICES)[number] = KOREAN_PROXY_VOICES[0],
-): KoreanSeniorProxyAnalyzeResult {
-  const english = mockEnglishOrderProxy(text);
-  return {
-    korean_text: text,
-    english_proxy_text: english,
-    voice_id: voice.voiceId,
-    age: {
-      group: "senior_adult" as AgeGroup,
-      years_est: 76.3,
-      confidence: 0.91,
-      child_prob: 0,
-    },
-    behavioral: {
-      speech_rate: 2.1,
-      silence_ratio: 0.18,
-      filler_count: 0,
-      assist_level: 2,
-    },
-    duration_ms: 340,
-    audio_base64: "",
-  };
-}
-
-function mockKoreanOrderAnalyze(text: string): AnalyzeResult {
-  return {
-    ...sampleAnalyzeResultElder,
-    transcript: text,
-    language: "ko",
-  };
-}
-
-function mockEnglishOrderProxy(text: string): string {
-  const normalized = text.replace(/\s+/g, "").toLowerCase();
-  let drink = "latte";
-  if (normalized.includes("바닐라") || normalized.includes("vanilla")) drink = "vanilla latte";
-  else if (normalized.includes("아메리카노") || normalized.includes("americano")) drink = "americano";
-
-  const modifiers: string[] = [];
-  if (normalized.includes("아이스") || normalized.includes("ice")) modifiers.push("iced");
-  if (normalized.includes("큰") || normalized.includes("라지") || normalized.includes("large")) modifiers.push("large");
-  const item = [...modifiers, drink].join(" ");
-  const article = /^[aeiou]/i.test(item) ? "an" : "a";
-  const fulfillment =
-    normalized.includes("포장") || normalized.includes("테이크아웃") || normalized.includes("takeout")
-      ? " to go"
-      : "";
-  return `I would like ${article} ${item}${fulfillment}, please.`;
+  if (!res.ok) {
+    let detail = "";
+    try {
+      detail = ((await res.json()) as { detail?: string }).detail ?? "";
+    } catch {
+      /* 본문 없음 */
+    }
+    throw new Error(detail || `realtime/session 발급 실패: ${res.status}`);
+  }
+  return (await res.json()) as RealtimeSession;
 }
 
 // ────────────────────────────────────────────────────────────
@@ -356,8 +252,6 @@ export async function generateUI(
         // 디버그/표시용 메타 — 어떤 신호로 생성됐는지 화면에서 확인 가능
         _mock: true,
         _step: req.step,
-        _assist_level: req.assist_level,
-        _age_group: req.age_group,
         _transcript: req.transcript,
         _candidates: req.menu_context.map((m) => m.id),
         _order_state: req.order_state,

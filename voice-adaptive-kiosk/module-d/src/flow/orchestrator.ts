@@ -21,18 +21,13 @@ import type {
 } from "@contracts/types";
 import {
   analyze,
-  analyzeKoreanSeniorProxy,
   getMenu,
   searchMenu,
   generateUI,
   groundIntent,
   createOrder,
-  USE_MOCK,
-  proxyAnalyzeToAnalyzeResult,
-  type KoreanProxyVoiceChoice,
-  type KoreanSeniorProxyAnalyzeResult,
 } from "../api/client";
-import { MicRecorder, isRecordingSupported, type RecordedClip } from "../audio/recorder";
+import { RealtimeVoiceSession, isRealtimeSupported } from "../audio/realtime";
 import { speak, cancelSpeech } from "../audio/tts";
 import { interpretVoiceTurn } from "./voiceIntent";
 
@@ -54,8 +49,6 @@ export interface FlowState {
   message: string;
   /** 마지막 분석 결과 */
   analyze: AnalyzeResult | null;
-  /** 한국어 주문 → 영어 senior proxy bridge 데모 trace */
-  proxyTrace: KoreanSeniorProxyAnalyzeResult | null;
   /** 적응 단계 */
   step: AdaptiveStep;
   /** 추천 후보 */
@@ -77,9 +70,8 @@ export interface FlowState {
 export function initialFlowState(): FlowState {
   return {
     phase: "idle",
-    message: "Press the microphone and tell us your order.",
+    message: "마이크를 누르고 주문을 말씀해 주세요.",
     analyze: null,
-    proxyTrace: null,
     step: "recommend",
     candidates: [],
     selectedItem: null,
@@ -96,12 +88,11 @@ type Listener = (s: FlowState) => void;
 export class Orchestrator {
   private state: FlowState = initialFlowState();
   private listeners = new Set<Listener>();
-  private recorder: MicRecorder | null = null;
-  private recordingTurn: "initial" | "followup" = "initial";
+  /** 현재 진행 중인 Realtime 음성 세션(없으면 null) */
+  private voice: RealtimeVoiceSession | null = null;
+  /** 이번 음성 턴이 첫 발화인지(initial) 멀티턴 재발화인지(followup) */
+  private voiceTurn: "initial" | "followup" = "initial";
   private menu: Menu | null = null;
-  /** mock 데모에서 어르신/청년 변형을 토글하기 위한 힌트 */
-  private mockVariant: "elder" | "youth" = "elder";
-  private proxyVoice: KoreanProxyVoiceChoice = "voice-1";
 
   // ── 구독 ─────────────────────────────────────────────────
   subscribe(fn: Listener): () => void {
@@ -117,153 +108,130 @@ export class Orchestrator {
     this.listeners.forEach((l) => l(this.state));
   }
 
-  setMockVariant(v: "elder" | "youth") {
-    this.mockVariant = v;
-  }
-
-  setProxyVoice(v: KoreanProxyVoiceChoice) {
-    this.proxyVoice = v;
-  }
-
-  // ── 마이크 흐름 시작 ───────────────────────────────────────
+  // ── 음성 주문 시작(OpenAI Realtime) ─────────────────────────
   /**
-   * 마이크 녹음 시작. mock 모드이거나 녹음 미지원이면 즉시 가짜 발화로 진행한다.
-   * (데모 보장: 마이크 권한 없이도 흐름이 화면에서 돈다.)
+   * 음성 주문 시작. 백엔드에서 ephemeral 세션을 받아 WebRTC로 OpenAI Realtime에
+   * 연결하고, server VAD가 2초 침묵을 감지하면 자동으로 turn을 닫아 최종 한국어
+   * transcript를 받는다. 연결 실패 시 한국어 오류로 폴백한다.
+   * mock/미지원 환경에서는 데모 발화로 즉시 흐름을 진행한다.
    */
   async startVoiceOrder(): Promise<void> {
     cancelSpeech();
     this.reset(false);
-    this.recordingTurn = "initial";
-    if (!isRecordingSupported()) {
-      this.set({
-        phase: "recording",
-        message: "Listening for your order...",
-      });
-      await wait(350);
-      await this.runKoreanProxyPipeline(null);
-      return;
-    }
-
-    try {
-      this.recorder = new MicRecorder();
-      await this.recorder.start();
-      this.set({ phase: "recording", message: "Listening. Press stop when you are finished." });
-    } catch {
-      this.recorder = null;
-      this.set({
-        phase: "recording",
-        message: "Listening for your order...",
-      });
-      await wait(350);
-      await this.runKoreanProxyPipeline(null);
-    }
+    this.voiceTurn = "initial";
+    await this.openVoiceSession();
   }
 
-  /** 녹음 종료 후 파이프라인 실행. */
+  /**
+   * 정지 버튼(보조): server VAD 자동종료를 기다리지 않고 즉시 입력을 마감한다.
+   * mock/미지원 환경에서는 데모 발화로 진행한다.
+   */
   async stopAndRun(): Promise<void> {
-    const recordingTurn = this.recordingTurn;
-    if (!this.recorder) {
-      // 녹음 중이 아니면 mock 흐름
-      this.recordingTurn = "initial";
-      if (recordingTurn === "followup" || this.state.phase === "adaptive") await this.runVoiceTurn(null);
-      else if (this.state.phase === "recording") await this.runKoreanProxyPipeline(null);
-      else await this.runPipeline(null);
+    if (this.voice) {
+      this.set({ phase: "analyzing", message: "주문 내용을 확인하고 있어요..." });
+      this.voice.stop();
       return;
     }
-    let clip: RecordedClip | null = null;
-    try {
-      clip = await this.recorder.stop();
-    } catch {
-      clip = null;
-    } finally {
-      this.recorder = null;
-      this.recordingTurn = "initial";
+    // 세션이 없으면(미지원/mock) 데모 발화로 진행
+    const turn = this.voiceTurn;
+    this.voiceTurn = "initial";
+    const transcript = turn === "followup" ? nextDemoUtteranceForStep(this.state.step) : DEMO_INITIAL_UTTERANCE;
+    if (turn === "followup" || this.state.phase === "adaptive") {
+      await this.handleTranscript(transcript);
+    } else {
+      await this.runInitialTurn(transcript);
     }
-    if (recordingTurn === "followup") await this.runVoiceTurn(clip?.blob ?? null);
-    else await this.runKoreanProxyPipeline(clip?.blob ?? null);
   }
 
-  /** 마이크 흐름 취소 → idle 복귀(StaticKiosk). */
+  /** 음성 흐름 취소 → idle 복귀(StaticKiosk). */
   cancel(): void {
     cancelSpeech();
-    this.recorder?.cancel();
-    this.recorder = null;
-    this.recordingTurn = "initial";
+    this.voice?.close();
+    this.voice = null;
+    this.voiceTurn = "initial";
     this.set({ ...initialFlowState() });
   }
 
-  // ── 핵심 파이프라인: analyze → menu → generate-ui ─────────────
-  private async runPipeline(audio: Blob | null): Promise<void> {
-    try {
-      // 1) A.analyze
-      this.set({ phase: "analyzing", message: "Analyzing your voice..." });
-      const result = await analyze(audio, { mockVariant: this.mockVariant });
-      this.set({ analyze: result });
+  /** Realtime 세션을 열고 transcript 콜백을 상태기계에 연결. 실패 시 데모/오류 폴백. */
+  private async openVoiceSession(): Promise<void> {
+    const isFollowup = this.voiceTurn === "followup";
+    if (!isRealtimeSupported()) {
+      // 미지원 환경: 데모 발화로 흐름을 보여준다.
+      this.set({ phase: "recording", message: "(데모) 주문을 듣고 있어요..." });
+      await wait(350);
+      const transcript = isFollowup ? nextDemoUtteranceForStep(this.state.step) : DEMO_INITIAL_UTTERANCE;
+      this.voiceTurn = "initial";
+      if (isFollowup) await this.handleTranscript(transcript);
+      else await this.runInitialTurn(transcript);
+      return;
+    }
 
-      // 2) B.menu(최초 1회 캐시) + 후보 검색
-      this.set({ phase: "matching", message: "Finding matching menu items..." });
-      if (!this.menu) this.menu = await getMenu();
-      const candidates = await this.recommendCandidates(result.transcript);
+    const session = new RealtimeVoiceSession({
+      onOpen: () => {
+        this.set({ phase: "recording", message: "듣고 있어요. 주문을 말씀해 주세요." });
+      },
+      onSpeechStarted: () => {
+        this.set({ message: "말씀을 듣고 있어요..." });
+      },
+      onTranscript: (transcript) => {
+        void this.onVoiceTranscript(transcript, isFollowup);
+      },
+      onError: (message) => {
+        this.voice = null;
+        this.voiceTurn = "initial";
+        this.fail(message);
+      },
+    });
+    this.voice = session;
+    this.set({ phase: "recording", message: "마이크를 준비하고 있어요..." });
+    await session.start();
+  }
 
-      // 3) C.generate-ui (recommend 단계)
-      await this.generateForStep("recommend", candidates, null, result);
-
-      // 추천 단계 음성 안내(assist_level 반영)
-      const lvl = result.behavioral.assist_level;
-      this.announce(
-        lvl >= 2
-          ? `${result.transcript.toLowerCase().includes("latte") ? "Latte" : "Menu"} options are shown in larger text. Please choose one.`
-          : "Please choose from the recommended menu items.",
-        lvl,
-      );
-    } catch (e: any) {
-      this.fail(e?.message ?? "Something went wrong while analyzing your voice.");
+  /** Realtime 최종 transcript 수신 → 세션 정리 후 상태기계로 전달. */
+  private async onVoiceTranscript(transcript: string, isFollowup: boolean): Promise<void> {
+    this.voice?.close();
+    this.voice = null;
+    this.voiceTurn = "initial";
+    const text = transcript.trim();
+    if (!text) {
+      this.set({ message: "잘 들리지 않았어요. 다시 한 번 말씀해 주세요." });
+      this.announce("잘 들리지 않았어요. 다시 한 번 말씀해 주세요.");
+      return;
+    }
+    if (isFollowup || this.state.phase === "adaptive" || this.state.analyze) {
+      await this.handleTranscript(text);
+    } else {
+      await this.runInitialTurn(text);
     }
   }
 
-  private async runKoreanProxyPipeline(audio: Blob | null): Promise<void> {
+  /** 첫 발화 transcript → 메뉴 검색 → recommend 단계 GGUI 생성. */
+  private async runInitialTurn(transcript: string): Promise<void> {
     try {
-      this.set({
-        phase: "analyzing",
-        message: audio ? "Understanding your order..." : "Preparing your order screen...",
-      });
-
-      let koreanText: string | undefined;
-      if (audio) {
-        const spoken = await analyze(audio, { mockVariant: this.mockVariant, forceLive: true });
-        koreanText = spoken.transcript.trim() || undefined;
-      }
-
-      const proxy = await analyzeKoreanSeniorProxy(koreanText, this.proxyVoice);
-      this.set({ proxyTrace: proxy });
-      this.set({ phase: "analyzing", message: "Playing back your order..." });
-      await playProxyAudioBase64(proxy.audio_base64);
-
-      const result = proxyAnalyzeToAnalyzeResult(proxy);
+      this.set({ phase: "analyzing", message: "주문 내용을 이해하고 있어요..." });
+      const result = await analyze(null, { transcript });
       this.set({ analyze: result });
 
-      this.set({ phase: "matching", message: "Finding menu items..." });
+      this.set({ phase: "matching", message: "메뉴를 찾고 있어요..." });
       if (!this.menu) this.menu = await getMenu();
       const candidates = await this.recommendCandidates(result.transcript);
 
       await this.generateForStep("recommend", candidates, null, result);
-      this.announce(
-        "Here are the best matches. Please choose one.",
-        result.behavioral.assist_level,
-      );
+      this.announce("말씀하신 주문에 맞는 메뉴예요. 이 중에서 골라 주세요.");
     } catch (e: any) {
-      this.fail(e?.message ?? "Something went wrong while preparing your order.");
+      this.fail(e?.message ?? "주문을 준비하는 중 문제가 발생했습니다.");
     }
   }
 
-  private async runVoiceTurn(audio: Blob | null): Promise<void> {
-    this.set({ phase: "analyzing", message: "Understanding your next request..." });
-    const result = await analyze(audio, { mockVariant: this.mockVariant });
-    await this.applyVoiceTranscript(result.transcript, result);
+  /** 멀티턴 transcript → 의도 해석 후 상태기계에 적용. */
+  private async handleTranscript(transcript: string): Promise<void> {
+    this.set({ phase: "analyzing", message: "다음 요청을 이해하고 있어요..." });
+    const result = await analyze(null, { transcript });
+    await this.applyVoiceTranscript(transcript, result);
   }
 
   async submitVoiceTurn(transcript: string): Promise<void> {
-    const result = this.state.analyze ?? await analyze(null, { mockVariant: this.mockVariant });
+    const result = this.state.analyze ?? await analyze(null, { transcript });
     await this.applyVoiceTranscript(transcript, { ...result, transcript });
   }
 
@@ -304,7 +272,7 @@ export class Orchestrator {
     if (intent.type === "set_options") {
       this.setOptionsPatch(intent.options);
       await this.generateForStep("fulfillment", candidates, this.state.selectedItem, result);
-      this.announce("Options updated. Dine in or take out?", this.assist());
+      this.announce("옵션을 바꿨어요. 매장에서 드시나요, 포장하시나요?");
       return;
     }
     if (intent.type === "fulfillment") {
@@ -326,7 +294,7 @@ export class Orchestrator {
     }
 
     await this.generateForStep(this.state.step, candidates, this.state.selectedItem, result);
-    this.announce("I did not catch that. Please say one of the choices on screen, or tap a button.", this.assist());
+    this.announce("잘 못 들었어요. 화면의 보기 중 하나를 말씀하시거나 버튼을 눌러 주세요.");
   }
 
   /** 주어진 step 에 대해 C.generate-ui 를 호출하고 adaptive 단계로 전환. */
@@ -336,13 +304,11 @@ export class Orchestrator {
     selectedItem: MenuItem | null,
     result: AnalyzeResult,
   ): Promise<void> {
-    this.set({ phase: "generating", message: "Building your adaptive screen..." });
+    this.set({ phase: "generating", message: "화면을 준비하고 있어요..." });
 
     const menuContext: MenuItem[] = selectedItem ? [selectedItem] : candidates;
     const generated = await generateUI({
       transcript: result.transcript,
-      age_group: result.age.group,
-      assist_level: result.behavioral.assist_level,
       menu_context: menuContext,
       order_state: this.currentOrderState(selectedItem),
       possible_actions: possibleActionsForStep(step),
@@ -358,16 +324,16 @@ export class Orchestrator {
       generated,
       message:
         step === "recommend"
-          ? "Please choose a menu item."
+          ? "메뉴를 골라 주세요."
           : step === "options"
-            ? "Please choose your options."
+            ? "옵션을 골라 주세요."
             : step === "fulfillment"
-              ? "Please choose dine in or take out."
+              ? "매장에서 드시나요, 포장하시나요?"
               : step === "loyalty"
-                ? "Please choose points or skip."
+                ? "적립하시겠어요, 아니면 건너뛰시겠어요?"
                 : step === "payment"
-                  ? "Please choose a payment method."
-                  : "Please confirm your order.",
+                  ? "결제 방법을 골라 주세요."
+                  : "주문 내용을 확인해 주세요.",
     });
   }
 
@@ -380,7 +346,7 @@ export class Orchestrator {
     if (!item.options || item.options.length === 0) {
       this.set({ selectedItem: item, selectedOptions: {}, orderState: this.currentOrderState(item, {}) });
       await this.generateForStep("fulfillment", this.state.candidates, item, this.state.analyze);
-      this.announce(`${item.name}, ${wonForSpeech(item.price)}. Dine in or take out?`, this.assist());
+      this.announce(`${item.name}, ${wonForSpeech(item.price)}. 매장에서 드시나요, 포장하시나요?`);
       return;
     }
     // 옵션 기본값(첫 choice)으로 초기화
@@ -388,7 +354,7 @@ export class Orchestrator {
     for (const opt of item.options) defaults[opt.type] = opt.choices[0]?.label ?? "";
     this.set({ selectedItem: item, selectedOptions: defaults, orderState: this.currentOrderState(item, defaults) });
     await this.generateForStep("options", this.state.candidates, item, this.state.analyze);
-    this.announce(`${item.name} selected. Please choose your options.`, this.assist());
+    this.announce(`${item.name}을(를) 골랐어요. 옵션을 골라 주세요.`);
   }
 
   /** 옵션 단계에서 한 옵션 선택값 변경. */
@@ -412,7 +378,7 @@ export class Orchestrator {
       this.state.analyze,
     );
     const it = this.state.selectedItem;
-    this.announce(`${it.name}. Dine in or take out?`, this.assist());
+    this.announce(`${it.name}. 매장에서 드시나요, 포장하시나요?`);
   }
 
   /** 옵션 단계로 되돌아가기(멀티턴/수정). */
@@ -431,21 +397,21 @@ export class Orchestrator {
     if (!this.state.analyze || !this.state.selectedItem) return;
     this.set({ orderState: { ...this.state.orderState, fulfillment: value } });
     await this.generateForStep("loyalty", this.state.candidates, this.state.selectedItem, this.state.analyze);
-    this.announce("Would you like to earn points or skip?", this.assist());
+    this.announce("적립하시겠어요, 아니면 건너뛰시겠어요?");
   }
 
   async setLoyalty(value: "scan" | "phone" | "none"): Promise<void> {
     if (!this.state.analyze || !this.state.selectedItem) return;
     this.set({ orderState: { ...this.state.orderState, loyalty: value } });
     await this.generateForStep("payment", this.state.candidates, this.state.selectedItem, this.state.analyze);
-    this.announce("Please choose a payment method.", this.assist());
+    this.announce("결제 방법을 골라 주세요.");
   }
 
   async setPaymentMethod(value: "Credit Card" | "Gift Card" | "Kakao Pay" | "Naver Pay" | "Pay at Counter"): Promise<void> {
     if (!this.state.analyze || !this.state.selectedItem) return;
     this.set({ orderState: { ...this.state.orderState, payment_method: value } });
     await this.generateForStep("confirm", this.state.candidates, this.state.selectedItem, this.state.analyze);
-    this.announce("Please check the total. Say yes or tap pay to finish.", this.assist());
+    this.announce("합계를 확인해 주세요. \"네\"라고 말씀하시거나 결제 버튼을 눌러 주세요.");
   }
 
   /** 옵션 단계에서 메뉴 추천으로 되돌아가기. */
@@ -466,8 +432,8 @@ export class Orchestrator {
     const item = this.state.selectedItem;
     if (!item) return;
     cancelSpeech();
-    this.set({ phase: "ordering", message: "Processing payment..." });
-    this.announce("Processing your payment. Please wait a moment.", this.assist());
+    this.set({ phase: "ordering", message: "결제를 진행하고 있어요..." });
+    this.announce("결제를 진행하고 있어요. 잠시만 기다려 주세요.");
 
     const line: OrderLine = {
       item_id: item.id,
@@ -479,14 +445,13 @@ export class Orchestrator {
       this.set({
         phase: "done",
         order,
-        message: `Payment complete. Order ${order.order_id}.`,
+        message: `결제가 완료됐어요. 주문번호 ${order.order_id}.`,
       });
       this.announce(
-        `Payment complete. We will call you when your ${item.name} is ready. Thank you.`,
-        this.assist(),
+        `결제가 완료됐어요. ${item.name} 준비되면 불러 드릴게요. 감사합니다.`,
       );
     } catch (e: any) {
-      this.fail(e?.message ?? "Something went wrong while processing payment.");
+      this.fail(e?.message ?? "결제를 진행하는 중 문제가 발생했습니다.");
     }
   }
 
@@ -496,35 +461,18 @@ export class Orchestrator {
    */
   async respeak(): Promise<void> {
     cancelSpeech();
-    if (USE_MOCK || !isRecordingSupported()) {
-      this.set({
-        phase: "recording",
-        message: "(Demo) Listening for the next step...",
-      });
-      await wait(350);
-      await this.applyVoiceTranscript(nextDemoUtteranceForStep(this.state.step), {
-        ...(this.state.analyze ?? await analyze(null, { mockVariant: this.mockVariant })),
-        transcript: nextDemoUtteranceForStep(this.state.step),
-      });
-      return;
-    }
-    try {
-      this.recorder = new MicRecorder();
-      this.recordingTurn = "followup";
-      await this.recorder.start();
-      this.set({ phase: "recording", message: "Listening for the next step. Press stop when finished." });
-    } catch {
-      this.recordingTurn = "initial";
-      await this.runVoiceTurn(null);
-    }
+    this.voice?.close();
+    this.voice = null;
+    this.voiceTurn = "followup";
+    await this.openVoiceSession();
   }
 
   /** 처음으로(새 주문). */
   reset(toIdle = true): void {
     cancelSpeech();
-    this.recorder?.cancel();
-    this.recorder = null;
-    this.recordingTurn = "initial";
+    this.voice?.close();
+    this.voice = null;
+    this.voiceTurn = "initial";
     const base = initialFlowState();
     this.state = toIdle ? base : { ...base, phase: this.state.phase };
     if (toIdle) this.listeners.forEach((l) => l(this.state));
@@ -547,19 +495,18 @@ export class Orchestrator {
   }
 
   // ── 내부 헬퍼 ──────────────────────────────────────────────
-  private assist(): 0 | 1 | 2 | 3 {
-    return this.state.analyze?.behavioral.assist_level ?? 0;
-  }
-  private announce(text: string, level: 0 | 1 | 2 | 3) {
-    // assist_level 0(빠른 청년)은 음성안내를 생략해 압축 경험을 준다.
-    if (level >= 1) speak(text, { assistLevel: level });
+  /** 한국어 음성 안내. 적응 강도는 항상 고령자 최대로 고정되므로 항상 읽어 준다. */
+  private announce(text: string) {
+    speak(text);
   }
   private fail(msg: string) {
     cancelSpeech();
+    this.voice?.close();
+    this.voice = null;
     this.set({
       phase: "error",
       error: msg,
-      message: `${msg} Continuing with the standard screen.`,
+      message: `${msg} 일반 화면으로 계속 진행합니다.`,
     });
   }
 
@@ -576,14 +523,7 @@ export class Orchestrator {
       // Grounding is allowed to fall back to deterministic local ranking.
     }
 
-    const intentText = [
-      transcript,
-      this.state.proxyTrace?.korean_text,
-      this.state.proxyTrace?.english_proxy_text,
-    ]
-      .filter(Boolean)
-      .join(" ");
-    return rankMenuCatalog(allItems, intentText).slice(0, 5);
+    return rankMenuCatalog(allItems, transcript).slice(0, 5);
   }
 
   private async tryGroundIntent(
@@ -593,13 +533,10 @@ export class Orchestrator {
     selectedItem: MenuItem | null,
   ): Promise<GroundIntentResponse | null> {
     if (!this.menu) this.menu = await getMenu();
-    const useInitialProxy = step === "recommend";
     try {
       return await groundIntent({
         step,
         transcript,
-        korean_text: useInitialProxy ? (this.state.proxyTrace?.korean_text ?? "") : "",
-        english_proxy_text: useInitialProxy ? (this.state.proxyTrace?.english_proxy_text ?? "") : "",
         menu_context: step === "recommend" ? this.menu.items : (this.menu.items ?? candidates),
         selected_item: selectedItem,
         order_state: this.currentOrderState(selectedItem),
@@ -640,7 +577,7 @@ export class Orchestrator {
     if (this.state.step === "options" && Object.keys(grounded.selected_options || {}).length > 0) {
       this.setOptionsPatch(grounded.selected_options);
       await this.generateForStep("fulfillment", candidates, this.state.selectedItem, result);
-      this.announce("Options updated. Dine in or take out?", this.assist());
+      this.announce("옵션을 바꿨어요. 매장에서 드시나요, 포장하시나요?");
       return true;
     }
     if (this.state.step === "fulfillment" && grounded.fulfillment) {
@@ -682,30 +619,8 @@ function wait(ms: number) {
   return new Promise((r) => setTimeout(r, ms));
 }
 
-async function playProxyAudioBase64(audioBase64: string): Promise<void> {
-  if (!audioBase64 || typeof Audio === "undefined") return;
-  try {
-    const audio = new Audio(`data:audio/mpeg;base64,${audioBase64}`);
-    await new Promise<void>((resolve) => {
-      let settled = false;
-      const done = () => {
-        if (settled) return;
-        settled = true;
-        window.clearTimeout(timeout);
-        resolve();
-      };
-      const timeout = window.setTimeout(done, 12000);
-      audio.onended = done;
-      audio.onerror = done;
-      audio.play().catch(done);
-    });
-  } catch {
-    // Browser autoplay policy or mock-empty audio should not block the demo flow.
-  }
-}
-
 function wonForSpeech(n: number): string {
-  return `${n.toLocaleString("en-US")} Korean won`;
+  return `${n.toLocaleString("ko-KR")}원`;
 }
 
 function initialOrderState(): AdaptiveOrderState {
@@ -730,13 +645,16 @@ function possibleActionsForStep(step: AdaptiveStep): string[] {
   return ["confirm", "change", "cancel"];
 }
 
+/** mock/미지원 환경에서 첫 음성 주문을 대신하는 데모 발화. */
+const DEMO_INITIAL_UTTERANCE = "라떼 한 잔 주세요";
+
 function nextDemoUtteranceForStep(step: AdaptiveStep): string {
-  if (step === "recommend") return "vanilla latte";
-  if (step === "options") return "iced large";
-  if (step === "fulfillment") return "take out";
-  if (step === "loyalty") return "skip points";
-  if (step === "payment") return "credit card";
-  return "yes";
+  if (step === "recommend") return "바닐라 라떼";
+  if (step === "options") return "아이스 크게";
+  if (step === "fulfillment") return "포장";
+  if (step === "loyalty") return "적립 안 할게요";
+  if (step === "payment") return "카드";
+  return "네";
 }
 
 function unitTotal(item: MenuItem, opts: Record<string, string>): number {
