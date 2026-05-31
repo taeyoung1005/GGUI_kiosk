@@ -9,46 +9,37 @@ const menu = [
   { id: "matcha", name: "Matcha Latte", category: "Latte", price: 5200, image_url: "", desc: "Green tea latte", options: [] },
 ];
 
-test("senior high-assist local render has a guided mode, coach panel, and two choices", () => {
+test("local render is always fixed at the senior-friendly mode with a coach panel and two choices", () => {
   const html = renderLocalHtml({
     step: "recommend",
-    profile: resolveProfile({ age_group: "senior_adult", assist_level: 2 }),
+    profile: resolveProfile(),
     candidates: menu,
-    transcript: "Can I get a latte",
+    transcript: "라떼 한 잔 주세요",
   });
 
   assert.match(html, /age-mode-guided/);
   assert.match(html, /class="coach"/);
   assert.equal((html.match(/class="card /g) || []).length, 2);
+  // 강도는 항상 고령자 최대 고정 — express/comfort 모드는 더 이상 없다.
+  assert.doesNotMatch(html, /age-mode-express/);
+  assert.doesNotMatch(html, /age-mode-comfort/);
 });
 
-test("young low-assist local render has an express mode and three choices", () => {
+test("local render uses Korean browser speech synthesis (no ElevenLabs proxy)", () => {
   const html = renderLocalHtml({
     step: "recommend",
-    profile: resolveProfile({ age_group: "young_adult", assist_level: 0 }),
+    profile: resolveProfile(),
     candidates: menu,
-    transcript: "Can I get a latte",
+    transcript: "라떼 한 잔 주세요",
   });
 
-  assert.match(html, /age-mode-express/);
-  assert.equal((html.match(/class="card /g) || []).length, 3);
-});
-
-test("guided local render requests ElevenLabs announcer narration with browser fallback", () => {
-  const html = renderLocalHtml({
-    step: "recommend",
-    profile: resolveProfile({ age_group: "senior_adult", assist_level: 2 }),
-    candidates: menu,
-    transcript: "Can I get a latte",
-  });
-
-  assert.match(html, /\/demo\/announcer-voice\/audio/);
-  assert.match(html, /u\.rate = 1\.0/);
-  assert.doesNotMatch(html, /u\.rate = 0\.9/);
+  assert.match(html, /u\.lang = "ko-KR"/);
+  assert.doesNotMatch(html, /\/demo\/announcer-voice\/audio/);
+  assert.doesNotMatch(html, /en-US/);
 });
 
 test("local render supports the full multi-turn kiosk steps", () => {
-  const profile = resolveProfile({ age_group: "senior_adult", assist_level: 2 });
+  const profile = resolveProfile();
   const item = {
     ...menu[1],
     options: [
@@ -73,7 +64,7 @@ test("local render supports the full multi-turn kiosk steps", () => {
     candidates: [item],
     item,
     orderState,
-    transcript: "iced large",
+    transcript: "아이스 큰 사이즈",
     total: 5500,
   });
   const payment = renderLocalHtml({
@@ -82,7 +73,7 @@ test("local render supports the full multi-turn kiosk steps", () => {
     candidates: [item],
     item,
     orderState,
-    transcript: "skip points",
+    transcript: "적립 안 함",
     total: 5500,
   });
   const confirm = renderLocalHtml({
@@ -92,23 +83,24 @@ test("local render supports the full multi-turn kiosk steps", () => {
     item,
     orderState,
     selectedOptions: orderState.selected_options,
-    transcript: "card",
+    transcript: "카드",
     total: 5500,
   });
 
-  assert.match(fulfillment, /3\. Place/);
+  assert.match(fulfillment, /3\. 장소/);
   assert.match(fulfillment, /data-action="setFulfillment"/);
-  assert.match(payment, /5\. Pay/);
+  assert.match(payment, /5\. 결제/);
   assert.match(payment, /data-action="setPayment"/);
-  assert.match(confirm, /Take Out/);
-  assert.match(confirm, /No points/);
-  assert.match(confirm, /Credit Card/);
+  // 확인 화면 요약은 한국어 라벨로 표시되지만 코드 값은 data-value 로 유지.
+  assert.match(confirm, /포장/);
+  assert.match(confirm, /포인트 없음/);
+  assert.match(confirm, /신용카드/);
 });
 
 test("local render has step-specific fulfillment controls", () => {
   const html = renderLocalHtml({
     step: "fulfillment",
-    profile: resolveProfile({ age_group: "senior_adult", assist_level: 2 }),
+    profile: resolveProfile(),
     candidates: menu,
     item: menu[0],
     transcript: "take out",
@@ -124,7 +116,7 @@ test("local render has step-specific fulfillment controls", () => {
 test("local render has step-specific loyalty controls", () => {
   const html = renderLocalHtml({
     step: "loyalty",
-    profile: resolveProfile({ age_group: "senior_adult", assist_level: 2 }),
+    profile: resolveProfile(),
     candidates: menu,
     item: menu[0],
     transcript: "skip points",
@@ -141,7 +133,7 @@ test("local render has step-specific loyalty controls", () => {
 test("local render has step-specific payment controls", () => {
   const html = renderLocalHtml({
     step: "payment",
-    profile: resolveProfile({ age_group: "senior_adult", assist_level: 2 }),
+    profile: resolveProfile(),
     candidates: menu,
     item: menu[0],
     transcript: "credit card",

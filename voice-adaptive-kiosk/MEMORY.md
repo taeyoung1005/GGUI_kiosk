@@ -702,3 +702,21 @@ curl -s -X POST http://localhost:8000/analyze   # mock에선 오디오 없이도
   - `cd module-a && .venv/bin/python -m py_compile app.py inference/*.py` → COMPILE_EXIT=0.
   - `PYTHONPATH=. .venv/bin/python -m unittest discover tests` → Ran 8 tests, OK (test_stt_config + test_env_loading).
   - 잔존 참조 grep(FasterWhisperSTT/create_age_model/score_behavioral/elevenlabs_voice/inference.age 등) → 0건.
+
+## Task 7: 메뉴 데이터 한국어화 (완료)
+- contracts/mocks.json sampleMenu + module-b/data/menu.seed.json 동일 한국어화. 변환 스크립트로 두 파일 동시 생성 → JSON 완전 동일 보장.
+- restaurant: "OBA 카페". categories: [커피,라떼,티,에이드,음료,디저트]. 48개 name/desc 한국어.
+- option type 한국어(온도/사이즈/샷/우유/당도/토핑/휘핑크림/맛/얼음/포장/제공 방식), label 한국어(뜨겁게/차갑게/기본/크게/싱글/더블/일반 우유/저지방 우유/오트 우유/덜 달게/더 달게 등).
+- id 슬러그·image_url·price·price_delta·키순서 전부 보존(diff 1072/1072 대칭, id/image/price 변경 0줄).
+- 검증(PASS): node -e 두 파일 items=48, restaurant="OBA 카페", 메뉴 JSON 동일=true, category∈categories=true, 사용자노출 필드 잔존영문=0. node --check module-b/server.js OK.
+- 커밋: 9a5c2ce [feat] 메뉴 데이터 전면 한국어화 (48개 항목·옵션·카테고리)
+
+## Task 4: Module C 강도 고정 + 한국어화 (완료)
+- adapt.js: ASSIST_TOKENS(0~3)·normalizeAssistLevel·SENIOR_GROUPS 제거. resolveProfile() 인자 무시, 항상 고령자 최대 단일 상수 SENIOR_TOKENS({base_font_px:30,title:44,card_count:2,voice_guide:true,...}) 반환. stepCopy big 분기 제거 + 전면 한국어화. pickCandidates(transcript 매칭) 유지.
+- contract.js: baseProps.assistLevel/ageGroup 스키마 제거. intentByStep 6개·actionSpec label/description(selectMenu "주문하기", confirmYes "네, 결제할게요", back "뒤로" 등) 한국어화. nextStep/step/enum 코드값 유지.
+- server.js: generateLocal/normalized에서 age_group·assist_level 파싱 제거, resolveProfile() 호출, _profile에서 assist/effective/age 필드 제거. normalizeAssistLevel import 제거. transcript/menu_context/order_state/step 유지.
+- local-render.js: profile.effective_level/assist_level/age_group 참조 제거(mode 항상 "guided" 고정, modeLabel "고령자 친화 모드"). 사용자 노출 전면 한국어화(카드 rank·CTA·옵션·매장/포장·쿠폰/포인트·결제·확인·스텝퍼·코치패널). 결제수단/매장포장/포인트는 코드값 data-value 유지+한국어 표시 라벨 매핑. TTS를 ko-KR 브라우저 speechSynthesis 단일 경로로(ElevenLabs /demo/announcer-voice/audio fetch + en-US 제거). dead .age-mode-express CSS 제거.
+- ggui-client.js: generateViaGgui에서 age_group/assist_level 구조분해 제거 + resolveProfile(). buildPrompt 강도를 입력 대신 SENIOR_INTENSITY 상수 주입 + UI 텍스트 KOREAN 지시. buildGguiProps base에서 assistLevel/ageGroup 제거. handshake persona "kiosk-50plus-senior-max" 고정.
+- 테스트 갱신: contract.test(resolveProfile() + /고령자 친화 키오스크/ + assistLevel/ageGroup undefined), local-render.test(고정강도 1케이스 + ko-KR speech + 한국어 step/요약 라벨), ggui-client.test(profile {tokens}만 + props.assistLevel/ageGroup undefined).
+- 검증: `npm --prefix module-c test` → Task 4 소유 테스트(contract 4 + ggui-client 7 + local-render 5) 전부 PASS. node --check 5개 파일 OK.
+- 사전존재 실패 2건(fallbackGroundIntent option labels, validateGroundIntent option labels)은 Task 7 menu.seed.json 한국어화로 인한 ground-intent.js(Task 4 범위 밖) 영문 라벨 미스매치 — 내 변경 stash 후 baseline에서도 동일 2건 실패 확인(내 작업과 무관).

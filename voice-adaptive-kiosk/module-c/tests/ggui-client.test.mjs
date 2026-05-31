@@ -143,12 +143,7 @@ test("buildGguiProps keeps the full recommend menu catalog for GGUI selection", 
 
   const props = buildGguiProps({
     step: "recommend",
-    profile: {
-      assist_level: 2,
-      effective_level: 3,
-      age_group: "senior_adult",
-      tokens: { voice_guide: true },
-    },
+    profile: { tokens: { voice_guide: true } },
     candidates: items,
     orderState: {},
     possibleActions: ["select_item"],
@@ -160,4 +155,7 @@ test("buildGguiProps keeps the full recommend menu catalog for GGUI selection", 
     "yuzu-tea-032",
     "salt-bread-041",
   ]);
+  // 적응 강도 입력(assistLevel/ageGroup)은 GGUI props 에서 제거됨.
+  assert.equal(props.assistLevel, undefined);
+  assert.equal(props.ageGroup, undefined);
 });

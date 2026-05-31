@@ -1,7 +1,7 @@
 // src/local-render.js
 //
-// LOCAL_FALLBACK 경로: GGUI/OPENAI 미가동 시, 요청(transcript+menu_context+assist_level)으로
-// 적응형 HTML 을 직접 생성한다. assist_level 높을수록 글자·여백·음성안내↑, 카드 2~3장.
+// LOCAL_FALLBACK 경로: GGUI/OPENAI 미가동 시, 요청(transcript+menu_context)으로
+// 적응형 HTML 을 직접 생성한다. 강도는 항상 고령자 최대(큰 글씨·넓은 여백·강한 음성안내·카드 2장)로 고정.
 // 생성 HTML 은 /r/:id 로 서빙되어 D 가 iframe 으로 임베드한다.
 //
 // D 와의 액션 계약: 카드/버튼 클릭 시 window.parent 로 postMessage 한다.
@@ -29,14 +29,14 @@ function cardHtml(item, t, showDesc, index) {
   const name = esc(item.name);
   const price = won(item.price);
   const desc = showDesc && item.desc ? `<p class="desc">${esc(item.desc)}</p>` : "";
-  const rank = index === 0 ? "Best match" : index === 1 ? "Easy second choice" : "Quick option";
+  const rank = index === 0 ? "가장 잘 맞아요" : index === 1 ? "두 번째 추천" : "다른 선택";
   const cardClass = index === 0 ? "card card-primary" : "card card-secondary";
-  // 이미지가 상대경로(/img/..)면 깨질 수 있으니 이모지 플레이스홀더 폴백.
+  // 이미지가 상대경로(/img/..)면 깨질 수 있으니 플레이스홀더 폴백.
   const thumb = item.image_url
     ? `<div class="thumb" style="background-image:url('${esc(item.image_url)}')"></div>`
-    : `<div class="thumb thumb--ph">LATTE</div>`;
+    : `<div class="thumb thumb--ph">메뉴</div>`;
   return `
-    <button class="${cardClass}" data-action="selectMenu" data-item-id="${id}" aria-label="${name}, ${price}, select">
+    <button class="${cardClass}" data-action="selectMenu" data-item-id="${id}" aria-label="${name}, ${price}, 선택">
       <div class="rank">${rank}</div>
       <div class="media">${thumb}</div>
       <div class="card-body">
@@ -44,7 +44,7 @@ function cardHtml(item, t, showDesc, index) {
         <div class="card-price">${price}</div>
         ${desc}
       </div>
-      <div class="card-cta">Order this</div>
+      <div class="card-cta">주문하기</div>
     </button>`;
 }
 
@@ -71,61 +71,69 @@ function optionsBody(item, options, t) {
     .join("");
   return `<div class="opt-wrap">
       <div class="confirm-item">${esc(item.name)} · ${won(item.price)}</div>
-      ${groups || '<p class="muted">No options available.</p>'}
-      <button class="btn btn-ghost" data-action="back">Back</button>
-      <button class="btn btn-yes" data-action="confirmOptions">Continue</button>
+      ${groups || '<p class="muted">선택할 옵션이 없습니다.</p>'}
+      <button class="btn btn-ghost" data-action="back">뒤로</button>
+      <button class="btn btn-yes" data-action="confirmOptions">계속</button>
     </div>`;
 }
 
 function fulfillmentBody(item, orderState, total) {
   const current = orderState?.fulfillment;
   return `<div class="choice-wrap">
-      <div class="confirm-item">${esc(item?.name ?? "Selected item")} · ${won(total ?? item?.price)}</div>
-      <p class="voice-hint">You can say "take out" or tap one.</p>
+      <div class="confirm-item">${esc(item?.name ?? "선택한 메뉴")} · ${won(total ?? item?.price)}</div>
+      <p class="voice-hint">"포장"이라고 말씀하시거나 하나를 눌러주세요.</p>
       <div class="choice-grid two">
         <button class="tile ${current === "Dine In" ? "selected" : ""}" data-action="setFulfillment" data-value="Dine In">
-          <strong>Dine In</strong><span>Eat at the store</span>
+          <strong>매장</strong><span>매장에서 드세요</span>
         </button>
         <button class="tile ${current === "Take Out" ? "selected" : ""}" data-action="setFulfillment" data-value="Take Out">
-          <strong>Take Out</strong><span>Pack to go</span>
+          <strong>포장</strong><span>포장해서 가져가세요</span>
         </button>
       </div>
-      <button class="btn btn-ghost" data-action="back">Back</button>
+      <button class="btn btn-ghost" data-action="back">뒤로</button>
     </div>`;
 }
 
 function loyaltyBody(item, orderState, total) {
   const current = orderState?.loyalty;
   return `<div class="choice-wrap">
-      <div class="confirm-item">${esc(item?.name ?? "Selected item")} · ${won(total ?? item?.price)}</div>
-      <p class="voice-hint">You can say "skip points", "coupon", or "earn points".</p>
+      <div class="confirm-item">${esc(item?.name ?? "선택한 메뉴")} · ${won(total ?? item?.price)}</div>
+      <p class="voice-hint">"적립 안 함", "쿠폰", "포인트 적립"이라고 말씀하실 수 있어요.</p>
       <div class="choice-grid">
         <button class="tile ${current === "scan" ? "selected" : ""}" data-action="setLoyalty" data-value="scan">
-          <strong>App Coupon</strong><span>Scan QR code</span>
+          <strong>앱 쿠폰</strong><span>QR 코드 찍기</span>
         </button>
         <button class="tile ${current === "phone" ? "selected" : ""}" data-action="setLoyalty" data-value="phone">
-          <strong>Earn Points</strong><span>Use phone number</span>
+          <strong>포인트 적립</strong><span>전화번호 사용</span>
         </button>
         <button class="tile ${current === "none" ? "selected" : ""}" data-action="setLoyalty" data-value="none">
-          <strong>Skip</strong><span>No coupon or points</span>
+          <strong>건너뛰기</strong><span>쿠폰·포인트 없이</span>
         </button>
       </div>
-      <button class="btn btn-ghost" data-action="back">Back</button>
+      <button class="btn btn-ghost" data-action="back">뒤로</button>
     </div>`;
 }
 
 function paymentBody(item, orderState, total) {
   const current = orderState?.payment_method;
   const methods = ["Credit Card", "Gift Card", "Kakao Pay", "Naver Pay", "Pay at Counter"];
+  // 결제수단 코드 값(계약 enum) → 한국어 표시 라벨.
+  const methodLabel = {
+    "Credit Card": "신용카드",
+    "Gift Card": "상품권",
+    "Kakao Pay": "카카오페이",
+    "Naver Pay": "네이버페이",
+    "Pay at Counter": "카운터 결제",
+  };
   return `<div class="choice-wrap">
-      <div class="confirm-item">${esc(item?.name ?? "Selected item")} · ${won(total ?? item?.price)}</div>
-      <p class="voice-hint">You can say "card", "Kakao Pay", or tap one. Payment happens on the next screen.</p>
+      <div class="confirm-item">${esc(item?.name ?? "선택한 메뉴")} · ${won(total ?? item?.price)}</div>
+      <p class="voice-hint">"카드", "카카오페이"라고 말씀하시거나 하나를 눌러주세요. 결제는 다음 화면에서 진행됩니다.</p>
       <div class="choice-grid">
         ${methods.map((method) => `<button class="tile ${current === method ? "selected" : ""}" data-action="setPayment" data-value="${esc(method)}">
-          <strong>${esc(method)}</strong><span>${method === "Credit Card" ? "Tap or insert card" : "Use selected payment"}</span>
+          <strong>${esc(methodLabel[method] ?? method)}</strong><span>${method === "Credit Card" ? "카드를 대거나 넣으세요" : "선택한 결제수단 사용"}</span>
         </button>`).join("")}
       </div>
-      <button class="btn btn-ghost" data-action="back">Back</button>
+      <button class="btn btn-ghost" data-action="back">뒤로</button>
     </div>`;
 }
 
@@ -135,19 +143,29 @@ function confirmBody(item, selectedOptions, total, orderState, t) {
     .map(([k, v]) => `<li><b>${esc(k)}</b> · ${esc(v)}</li>`)
     .join("");
   const loyalty =
-    orderState?.loyalty === "none" ? "No points" : orderState?.loyalty === "scan" ? "App coupon" : orderState?.loyalty === "phone" ? "Earn points" : "Points not selected";
+    orderState?.loyalty === "none" ? "포인트 없음" : orderState?.loyalty === "scan" ? "앱 쿠폰" : orderState?.loyalty === "phone" ? "포인트 적립" : "포인트 미선택";
+  const fulfillmentLabel =
+    orderState?.fulfillment === "Dine In" ? "매장" : orderState?.fulfillment === "Take Out" ? "포장" : "장소 미선택";
+  const paymentLabelMap = {
+    "Credit Card": "신용카드",
+    "Gift Card": "상품권",
+    "Kakao Pay": "카카오페이",
+    "Naver Pay": "네이버페이",
+    "Pay at Counter": "카운터 결제",
+  };
+  const paymentLabel = orderState?.payment_method ? (paymentLabelMap[orderState.payment_method] ?? orderState.payment_method) : "결제수단 미선택";
   return `<div class="confirm-wrap">
       <div class="confirm-item">${esc(item.name)}</div>
-      <ul class="confirm-opts">${opts || "<li>No options</li>"}</ul>
+      <ul class="confirm-opts">${opts || "<li>옵션 없음</li>"}</ul>
       <div class="state-pills">
-        <span>${esc(orderState?.fulfillment ?? "Place not selected")}</span>
+        <span>${esc(fulfillmentLabel)}</span>
         <span>${esc(loyalty)}</span>
-        <span>${esc(orderState?.payment_method ?? "Payment not selected")}</span>
+        <span>${esc(paymentLabel)}</span>
       </div>
-      <div class="confirm-total">Total <b>${won(total ?? item.price)}</b></div>
+      <div class="confirm-total">합계 <b>${won(total ?? item.price)}</b></div>
       <div class="yesno">
-        <button class="btn btn-yes" data-action="confirmYes">Yes, Pay</button>
-        <button class="btn btn-no" data-action="confirmNo">No, choose again</button>
+        <button class="btn btn-yes" data-action="confirmYes">네, 결제할게요</button>
+        <button class="btn btn-no" data-action="confirmNo">아니요, 다시 고를게요</button>
       </div>
     </div>`;
 }
@@ -167,18 +185,9 @@ export function renderLocalHtml(args) {
   const { step, profile, candidates = [], transcript } = args;
   const t = profile.tokens;
   const copy = stepCopy(step, profile, candidates);
-  const mode =
-    profile.effective_level >= 2
-      ? "guided"
-      : profile.effective_level === 1
-      ? "comfort"
-      : "express";
-  const modeLabel =
-    mode === "guided"
-      ? "Guided senior mode"
-      : mode === "comfort"
-      ? "Comfort mode"
-      : "Express mode";
+  // 강도는 항상 고령자 친화 최대로 고정.
+  const mode = "guided";
+  const modeLabel = "고령자 친화 모드";
 
   let body = "";
   if (step === "options" && args.item) {
@@ -202,21 +211,21 @@ export function renderLocalHtml(args) {
   const voice = t.voice_guide ? copy.voice : "";
   const gridCols = step === "recommend" ? (t.card_count >= 3 ? 3 : 2) : 1;
   const steps = [
-    ["recommend", "1. Pick"],
-    ["options", "2. Options"],
-    ["fulfillment", "3. Place"],
-    ["loyalty", "4. Points"],
-    ["payment", "5. Pay"],
-    ["confirm", "6. Review"],
+    ["recommend", "1. 선택"],
+    ["options", "2. 옵션"],
+    ["fulfillment", "3. 장소"],
+    ["loyalty", "4. 포인트"],
+    ["payment", "5. 결제"],
+    ["confirm", "6. 확인"],
   ];
 
-  // 인라인 CSS: assist_level 토큰을 CSS 변수로 주입 → 글자·여백 적응.
+  // 인라인 CSS: 고정 강도 토큰을 CSS 변수로 주입 → 큰 글씨·넓은 여백.
   return `<!doctype html>
-<html lang="en">
+<html lang="ko">
 <head>
 <meta charset="utf-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
-<title>Adaptive UI · ${esc(step)} · L${profile.assist_level}</title>
+<title>적응형 UI · ${esc(step)}</title>
 <style>
   :root{
     --base:${t.base_font_px}px;
@@ -237,7 +246,6 @@ export function renderLocalHtml(args) {
     var(--bg);}
   .wrap{max-width:1120px;margin:0 auto;padding:var(--pad);}
   .stage{display:grid;grid-template-columns:minmax(0,1fr) minmax(220px,320px);gap:var(--gap);align-items:start;}
-  .age-mode-express .stage{grid-template-columns:1fr;}
   @media(max-width:780px){.stage{grid-template-columns:1fr;}}
   header.kiosk{padding:calc(var(--pad) * .7) 0 var(--gap);}
   .badge{display:inline-block;font-size:.68em;color:#f8fff9;background:#17352b;
@@ -305,9 +313,7 @@ export function renderLocalHtml(args) {
 <body class="age-mode-${mode}">
   <div class="wrap">
     <header class="kiosk">
-      <span class="badge">${modeLabel} · L${profile.assist_level} · age ${esc(
-    profile.age_group
-  )}</span>
+      <span class="badge">${modeLabel}</span>
       <h1 class="title">${esc(copy.title)}</h1>
       <p class="subtitle">${esc(copy.subtitle)}</p>
     </header>
@@ -318,72 +324,34 @@ export function renderLocalHtml(args) {
       voice
         ? `<div class="voicebar"><span id="voiceText">${esc(
             voice
-          )}</span> <button id="voiceReplay" data-action="repeat">Replay</button></div>`
+          )}</span> <button id="voiceReplay" data-action="repeat">다시 듣기</button></div>`
         : ""
     }
     <div class="stage">
       <main>${body}</main>
-      ${
-        mode !== "express"
-          ? `<aside class="coach"><div class="coach-label">Voice assistant</div><div class="coach-main">${esc(
-              copy.voice
-            )}</div><div class="coach-sub">Fewer choices, larger touch targets, and one clear next action.</div></aside>`
-          : ""
-      }
+      <aside class="coach"><div class="coach-label">음성 도우미</div><div class="coach-main">${esc(
+        copy.voice
+      )}</div><div class="coach-sub">선택지는 적게, 버튼은 크게, 다음 행동은 하나만.</div></aside>
     </div>
   </div>
 <script>
 (function(){
   var VOICE = ${JSON.stringify(voice)};
-  var ANALYZE_URL = ${JSON.stringify(process.env.VITE_ANALYZE_URL || process.env.ANALYZE_URL || "http://localhost:8000")};
-  var currentAudio = null;
-  var currentUrl = null;
-  function cleanupAudio(){
-    try{ if(currentAudio) currentAudio.pause(); }catch(e){}
-    try{ if(currentUrl) URL.revokeObjectURL(currentUrl); }catch(e){}
-    currentAudio = null;
-    currentUrl = null;
-  }
-  function browserSpeak(text){
+  // 음성 안내: 브라우저 한국어 speechSynthesis 로 읽어준다(ko-KR).
+  function speak(text){
     try{
       if(!text || !("speechSynthesis" in window)) return;
       window.speechSynthesis.cancel();
       var u = new SpeechSynthesisUtterance(text);
-      u.lang = "en-US"; u.rate = 1.0; u.pitch = 1.05;
+      u.lang = "ko-KR"; u.rate = 1.0; u.pitch = 1.05;
       var voices = window.speechSynthesis.getVoices ? window.speechSynthesis.getVoices() : [];
-      var preferred = ["samantha","ava","allison","karen","google us english","microsoft aria","microsoft jenny"];
-      var english = voices.filter(function(v){ return (v.lang || "").toLowerCase().indexOf("en") === 0; });
-      var picked = english.find(function(v){
-        var n = (v.name || "").toLowerCase();
-        return preferred.some(function(p){ return n.indexOf(p) >= 0; });
-      }) || english.find(function(v){ return (v.lang || "").toLowerCase().indexOf("en-us") === 0; }) || english[0];
+      var korean = voices.filter(function(v){ return (v.lang || "").toLowerCase().indexOf("ko") === 0; });
+      var picked = korean[0];
       if(picked) u.voice = picked;
       window.speechSynthesis.speak(u);
     }catch(e){}
   }
-  function speak(text){
-    try{
-      if(!text) return;
-      cleanupAudio();
-      if("speechSynthesis" in window) window.speechSynthesis.cancel();
-      fetch(ANALYZE_URL + "/demo/announcer-voice/audio", {
-        method:"POST",
-        headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({ text:text })
-      })
-        .then(function(res){ if(!res.ok) throw new Error("tts"); return res.blob(); })
-        .then(function(blob){
-          if(!blob || !blob.size) throw new Error("empty");
-          currentUrl = URL.createObjectURL(blob);
-          currentAudio = new Audio(currentUrl);
-          currentAudio.onended = cleanupAudio;
-          currentAudio.onerror = cleanupAudio;
-          return currentAudio.play();
-        })
-        .catch(function(){ browserSpeak(text); });
-    }catch(e){ browserSpeak(text); }
-  }
-  // Adaptive voice guidance: play once on entry when the browser allows it.
+  // 적응형 음성 안내: 진입 시 브라우저가 허용하면 한 번 재생.
   if(VOICE){ setTimeout(function(){ speak(VOICE); }, 350); }
 
   function emit(action, data){

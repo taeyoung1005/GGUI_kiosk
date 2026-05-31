@@ -1,92 +1,34 @@
 // src/adapt.js
 //
-// 적응 규율(canonical) — assist_level(0~3) + age_group(Vox-Profile broad 버킷) → UI 강도.
-// "구조 고정(큰 카드 2~3장 + 예/아니요 + 큰 글씨), 내용만 적응"이라는 SPEC §4 규칙을
+// 적응 규율(canonical) — 고령자 친화 최대 강도로 고정한다.
+// "구조 고정(큰 카드 2장 + 예/아니요 + 큰 글씨), 내용만 적응"이라는 SPEC §4 규칙을
 // 한 곳에 둔다. GGUI 경로는 이 규율을 prompt 로, LOCAL 경로는 이 규율을 디자인 토큰으로 쓴다.
 //
-// 적응 신호 주축 = 행동신호(assist_level). 나이(age_group)는 보조(살짝만 가중).
+// 나이/행동신호 입력은 제거됐다. 적응 강도는 항상 고령자 최대(SENIOR_TOKENS)로 고정하고,
+// 발화 transcript 만 콘텐츠(추천 후보·옵션 매칭)에 반영한다.
 
-/** assist_level 별 디자인 토큰. 높을수록 글자·여백·음성안내가 강해진다. */
-const ASSIST_TOKENS = {
-  0: {
-    label: "일반",
-    font_scale: 1.0,
-    base_font_px: 18,
-    title_font_px: 26,
-    card_count: 3, // 압축: 카드 3장 한눈에
-    card_pad_px: 16,
-    gap_px: 14,
-    voice_guide: false, // TTS 안내 약함
-    show_desc: true,
-    yesno_big: false,
-    tone: "compact",
-  },
-  1: {
-    label: "약간 보조",
-    font_scale: 1.15,
-    base_font_px: 21,
-    title_font_px: 30,
-    card_count: 3,
-    card_pad_px: 20,
-    gap_px: 18,
-    voice_guide: true,
-    show_desc: true,
-    yesno_big: false,
-    tone: "comfortable",
-  },
-  2: {
-    label: "보조",
-    font_scale: 1.35,
-    base_font_px: 25,
-    title_font_px: 36,
-    card_count: 3,
-    card_pad_px: 26,
-    gap_px: 24,
-    voice_guide: true,
-    show_desc: false, // 잡정보 제거, 이름·가격만
-    yesno_big: true,
-    tone: "large",
-  },
-  3: {
-    label: "최대 보조",
-    font_scale: 1.6,
-    base_font_px: 30,
-    title_font_px: 44,
-    card_count: 2, // 선택 부담 최소화: 카드 2장
-    card_pad_px: 32,
-    gap_px: 30,
-    voice_guide: true, // 강한 음성안내
-    show_desc: false,
-    yesno_big: true,
-    tone: "xlarge",
-  },
+/** 고령자 친화 최대 강도 디자인 토큰(고정). 큰 글씨·넓은 여백·강한 음성안내. */
+const SENIOR_TOKENS = {
+  label: "고령자 친화 최대",
+  font_scale: 1.6,
+  base_font_px: 30,
+  title_font_px: 44,
+  card_count: 2, // 선택 부담 최소화: 카드 2장
+  card_pad_px: 32,
+  gap_px: 30,
+  voice_guide: true, // 강한 음성안내
+  show_desc: false, // 잡정보 제거, 이름·가격만
+  yesno_big: true,
+  tone: "xlarge",
 };
-
-/** assist_level 정규화 (0~3 범위 보정). */
-export function normalizeAssistLevel(level) {
-  const n = Number(level);
-  if (!Number.isFinite(n)) return 0;
-  return Math.max(0, Math.min(3, Math.round(n)));
-}
-
-/** 시니어 버킷 — 보조로 적응 강도를 한 단계 올린다. Legacy decade labels도 허용한다. */
-const SENIOR_GROUPS = new Set(["senior_adult", "fifties", "sixties", "seventies_plus"]);
 
 /**
  * 적응 프로파일 계산.
- * 시니어 버킷이면 보조 강도를 한 단계만 부드럽게 올린다(보조 신호).
+ * 강도는 항상 고령자 최대로 고정한다(인자는 받지 않으며 무시한다).
  */
-export function resolveProfile({ assist_level, age_group }) {
-  const lvl = normalizeAssistLevel(assist_level);
-  // 나이 보조 가중: 시니어이고 아직 최대치가 아니면 effective 를 +1 (토큰만, 원래 level 유지)
-  let effective = lvl;
-  if (SENIOR_GROUPS.has(age_group) && effective < 3) effective += 1;
-  const tokens = ASSIST_TOKENS[effective] ?? ASSIST_TOKENS[0];
+export function resolveProfile() {
   return {
-    assist_level: lvl,
-    effective_level: effective,
-    age_group: age_group ?? "unknown",
-    tokens,
+    tokens: SENIOR_TOKENS,
   };
 }
 
@@ -119,48 +61,46 @@ export function pickCandidates(menu_context, transcript, count) {
   return ordered.slice(0, count);
 }
 
-/** Per-step copy (English, senior-friendly tone). */
+/** 단계별 카피(한국어, 고령자 친화 톤 고정). */
 export function stepCopy(step, profile, candidates) {
-  const big = profile.effective_level >= 2;
   switch (step) {
     case "options":
       return {
-        title: big ? "How would you like it?" : "Choose your options",
-        subtitle: "Pick what you'd like with the large buttons.",
-        voice:
-          "Please choose your options. You can pick hot or iced.",
+        title: "어떻게 드릴까요?",
+        subtitle: "큰 버튼으로 원하시는 것을 선택하세요.",
+        voice: "옵션을 골라주세요. 뜨겁게 또는 차갑게 선택하실 수 있어요.",
       };
     case "confirm":
       return {
-        title: big ? "Ready to pay?" : "Please confirm your order",
-        subtitle: "Check the order, place, points, and payment method before paying.",
-        voice: "Please check your order. Say yes or tap pay if everything is correct.",
+        title: "결제하시겠어요?",
+        subtitle: "결제 전에 메뉴, 매장/포장, 포인트, 결제수단을 확인하세요.",
+        voice: "주문 내용을 확인해주세요. 맞으면 '네'라고 말씀하시거나 결제를 눌러주세요.",
       };
     case "fulfillment":
       return {
-        title: big ? "Eat here or take out?" : "Choose dine in or take out",
-        subtitle: "Pick where this order should be prepared.",
-        voice: "Please say take out, dine in, or tap one of the large buttons.",
+        title: "매장에서 드시나요, 포장하시나요?",
+        subtitle: "주문을 어디서 준비할지 선택하세요.",
+        voice: "'포장', '매장'이라고 말씀하시거나 큰 버튼을 눌러주세요.",
       };
     case "loyalty":
       return {
-        title: big ? "Coupons or points?" : "Coupons and points",
-        subtitle: "You can scan a coupon, earn points, or skip.",
-        voice: "Please choose a coupon, points, or skip this step.",
+        title: "쿠폰이나 포인트 사용하시나요?",
+        subtitle: "쿠폰을 찍거나 포인트를 적립하거나 건너뛸 수 있어요.",
+        voice: "쿠폰, 포인트 적립, 또는 건너뛰기 중에서 선택해주세요.",
       };
     case "payment":
       return {
-        title: big ? "How will you pay?" : "Choose payment method",
-        subtitle: "Payment is not charged until the final confirmation.",
-        voice: "Please choose card, mobile pay, gift card, or pay at the counter.",
+        title: "어떻게 결제하시나요?",
+        subtitle: "결제는 마지막 확인 화면에서 진행됩니다.",
+        voice: "카드, 간편결제, 상품권, 또는 카운터 결제 중에서 골라주세요.",
       };
     case "recommend":
     default: {
-      const first = candidates?.[0]?.name ?? "our menu";
+      const first = candidates?.[0]?.name ?? "메뉴";
       return {
-        title: big ? "How about this?" : "How about one of these?",
-        subtitle: "Pick the one you like with the large cards.",
-        voice: `We recommend something like ${first}. Please pick the one you like.`,
+        title: "이 중에서 골라주세요",
+        subtitle: "큰 카드로 원하시는 것을 선택하세요.",
+        voice: `${first} 같은 메뉴를 추천드려요. 원하시는 것을 골라주세요.`,
       };
     }
   }

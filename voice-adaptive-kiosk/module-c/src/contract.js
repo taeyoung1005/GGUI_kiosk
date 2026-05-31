@@ -32,29 +32,23 @@ const menuItemSchema = {
 export function buildDataContract(step, { candidates, profile }) {
   const intentByStep = {
     recommend:
-      "Senior-friendly kiosk recommendation screen — recommend menu items as 2-3 large cards, selectable with a single big touch.",
+      "고령자 친화 키오스크 추천 화면 — 메뉴를 큰 카드 2장으로 추천하고, 한 번의 큰 터치로 선택하게 한다.",
     options:
-      "Senior-friendly kiosk options screen — choose temperature/size one item at a time with large buttons.",
+      "고령자 친화 키오스크 옵션 화면 — 온도/사이즈를 한 번에 하나씩 큰 버튼으로 선택하게 한다.",
     fulfillment:
-      "Senior-friendly kiosk fulfillment screen — choose dine in or take out with two large buttons and voice affordance.",
+      "고령자 친화 키오스크 매장/포장 화면 — 매장과 포장을 큰 버튼 두 개와 음성 안내로 선택하게 한다.",
     loyalty:
-      "Senior-friendly kiosk loyalty screen — choose coupon scan, earn points, or skip with clear large buttons.",
+      "고령자 친화 키오스크 쿠폰/포인트 화면 — 쿠폰 찍기, 포인트 적립, 건너뛰기를 큰 버튼으로 명확히 선택하게 한다.",
     payment:
-      "Senior-friendly kiosk payment screen — choose one payment method, but do not charge until the final confirmation.",
+      "고령자 친화 키오스크 결제 화면 — 결제수단 하나를 선택하되, 마지막 확인 전까지는 결제하지 않는다.",
     confirm:
-      "Senior-friendly kiosk final confirmation screen — summarize item, options, fulfillment, loyalty, and payment before charging.",
+      "고령자 친화 키오스크 최종 확인 화면 — 결제 전에 메뉴, 옵션, 매장/포장, 쿠폰/포인트, 결제수단을 요약한다.",
   };
 
-  // 공통 props: 화면 제목/안내와 적응 강도(글자·여백·음성).
+  // 공통 props: 화면 제목/안내와 음성 안내. (적응 강도는 Module C 내부 고정 상수)
   const baseProps = {
     title: { schema: { type: "string" }, required: true },
     subtitle: { schema: { type: "string" } },
-    assistLevel: {
-      schema: { type: "integer", minimum: 0, maximum: 3 },
-      required: true,
-      description: "UI 적응 강도(주축 신호). 높을수록 글자·여백·음성안내 강화.",
-    },
-    ageGroup: { schema: { type: "string" } },
     voiceGuide: {
       schema: { type: "string" },
       description: "speechSynthesis 로 읽어줄 음성 안내 문구(없으면 무음).",
@@ -105,8 +99,8 @@ export function buildDataContract(step, { candidates, profile }) {
       },
       actionSpec: {
         selectOption: {
-          label: "Choose this",
-          description: "Select one option. Sends {type, label} as payload.",
+          label: "이걸로 선택",
+          description: "옵션 하나를 선택합니다. {type, label} 을 payload 로 보냅니다.",
           schema: {
             type: "object",
             properties: { type: { type: "string" }, label: { type: "string" } },
@@ -114,7 +108,7 @@ export function buildDataContract(step, { candidates, profile }) {
           },
           nextStep: "confirm",
         },
-        back: { label: "Back", nextStep: "recommend" },
+        back: { label: "뒤로", nextStep: "recommend" },
       },
     };
   }
@@ -136,13 +130,13 @@ export function buildDataContract(step, { candidates, profile }) {
       },
       actionSpec: {
         confirmYes: {
-          label: "Yes, order it",
+          label: "네, 결제할게요",
           icon: "✅",
-          description: "Confirm the order → proceed to Module B /orders (mock payment).",
+          description: "주문을 확정합니다 → Module B /orders 로 진행(모의 결제).",
           nextStep: "order",
         },
         confirmNo: {
-          label: "No, choose again",
+          label: "아니요, 다시 고를게요",
           icon: "↩️",
           nextStep: "recommend",
         },
@@ -163,8 +157,8 @@ export function buildDataContract(step, { candidates, profile }) {
       },
       actionSpec: {
         setFulfillment: {
-          label: "Choose place",
-          description: "Select dine in or take out. Sends {value}.",
+          label: "장소 선택",
+          description: "매장 또는 포장을 선택합니다. {value} 를 보냅니다.",
           schema: {
             type: "object",
             properties: { value: { type: "string", enum: ["Dine In", "Take Out"] } },
@@ -172,7 +166,7 @@ export function buildDataContract(step, { candidates, profile }) {
           },
           nextStep: "loyalty",
         },
-        back: { label: "Back", nextStep: "options" },
+        back: { label: "뒤로", nextStep: "options" },
       },
     };
   }
@@ -190,8 +184,8 @@ export function buildDataContract(step, { candidates, profile }) {
       },
       actionSpec: {
         setLoyalty: {
-          label: "Choose points option",
-          description: "Select coupon scan, earn points, or skip. Sends {value}.",
+          label: "쿠폰/포인트 선택",
+          description: "쿠폰 찍기, 포인트 적립, 또는 건너뛰기를 선택합니다. {value} 를 보냅니다.",
           schema: {
             type: "object",
             properties: { value: { type: "string", enum: ["scan", "phone", "none"] } },
@@ -199,7 +193,7 @@ export function buildDataContract(step, { candidates, profile }) {
           },
           nextStep: "payment",
         },
-        back: { label: "Back", nextStep: "fulfillment" },
+        back: { label: "뒤로", nextStep: "fulfillment" },
       },
     };
   }
@@ -217,8 +211,8 @@ export function buildDataContract(step, { candidates, profile }) {
       },
       actionSpec: {
         setPayment: {
-          label: "Choose payment",
-          description: "Select payment method. Sends {value}.",
+          label: "결제수단 선택",
+          description: "결제수단을 선택합니다. {value} 를 보냅니다.",
           schema: {
             type: "object",
             properties: {
@@ -231,7 +225,7 @@ export function buildDataContract(step, { candidates, profile }) {
           },
           nextStep: "confirm",
         },
-        back: { label: "Back", nextStep: "loyalty" },
+        back: { label: "뒤로", nextStep: "loyalty" },
       },
     };
   }
@@ -252,8 +246,8 @@ export function buildDataContract(step, { candidates, profile }) {
     },
     actionSpec: {
       selectMenu: {
-        label: "Order this",
-        description: "Select one card. Sends {item_id} as payload.",
+        label: "주문하기",
+        description: "카드 하나를 선택합니다. {item_id} 를 payload 로 보냅니다.",
         schema: {
           type: "object",
           properties: { item_id: { type: "string" } },
@@ -262,8 +256,8 @@ export function buildDataContract(step, { candidates, profile }) {
         nextStep: "options",
       },
       repeat: {
-        label: "Play again",
-        description: "Replay the voice guidance (multi-turn helper).",
+        label: "다시 듣기",
+        description: "음성 안내를 다시 재생합니다(멀티턴 보조).",
       },
     },
   };

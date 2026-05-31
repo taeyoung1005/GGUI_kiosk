@@ -19,7 +19,7 @@ import { randomBytes } from "node:crypto";
 import { readFileSync, existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { dirname, join } from "node:path";
-import { resolveProfile, pickCandidates, normalizeAssistLevel } from "./src/adapt.js";
+import { resolveProfile, pickCandidates } from "./src/adapt.js";
 import { buildDataContract } from "./src/contract.js";
 import { renderLocalHtml } from "./src/local-render.js";
 import { consumeGguiEvents, generateViaGgui } from "./src/ggui-client.js";
@@ -85,8 +85,6 @@ function withTimeout(promise, ms, label) {
 function generateLocal(req) {
   const {
     transcript = "",
-    age_group = "unknown",
-    assist_level = 0,
     menu_context = [],
     step = "recommend",
     item,
@@ -96,7 +94,7 @@ function generateLocal(req) {
     possible_actions = [],
   } = req;
 
-  const profile = resolveProfile({ assist_level, age_group });
+  const profile = resolveProfile();
   const candidates = pickCandidates(menu_context, transcript, profile.tokens.card_count);
   const targetItem = item ?? menu_context?.[0] ?? candidates[0];
   const resolvedOptions = selectedOptions ?? order_state?.selected_options ?? {};
@@ -139,9 +137,6 @@ function generateLocal(req) {
       _possible_actions: possible_actions,
       _render_path: "local",
       _profile: {
-        assist_level: profile.assist_level,
-        effective_level: profile.effective_level,
-        age_group: profile.age_group,
         tone: profile.tokens.tone,
         card_count: profile.tokens.card_count,
         base_font_px: profile.tokens.base_font_px,
@@ -221,10 +216,6 @@ app.post("/generate-ui", async (req, res) => {
   // 최소 유효성 + 정규화
   const normalized = {
     transcript: String(body.transcript ?? ""),
-    // Vox-Profile broad age 버킷을 그대로 통과 — adapt.js 가 시니어 버킷을 판단.
-    age_group:
-      typeof body.age_group === "string" && body.age_group ? body.age_group : "unknown",
-    assist_level: normalizeAssistLevel(body.assist_level),
     menu_context: Array.isArray(body.menu_context) ? body.menu_context : [],
     step: allowedSteps.includes(body.step) ? body.step : "recommend",
     item: body.item,

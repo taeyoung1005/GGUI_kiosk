@@ -9,8 +9,8 @@
 //   임베드 뷰어: {GGUI_URL}/r/<shortCode>
 //
 // prompt(자연어 규율) 은 handshake intent + blueprintDraft.variance.seedPrompt 로 실어
-// "assist_level/age_group 별 UI 규율(큰 카드 2~3장 + 예/아니요 + 큰 글씨, 구조 고정·내용만 적응)"
-// 을 생성 LLM(OpenAI BYOK) 에 전달한다.
+// "고령자 친화 최대 강도 UI 규율(큰 카드 2장 + 예/아니요 + 큰 글씨, 구조 고정·내용만 적응)"
+// 을 생성 LLM(OpenAI BYOK) 에 전달한다. 적응 강도는 입력이 아니라 아래 고정 상수다.
 //
 // 의존: @modelcontextprotocol/sdk (MCP Streamable HTTP 클라이언트).
 
@@ -19,22 +19,25 @@ import { StreamableHTTPClientTransport } from "@modelcontextprotocol/sdk/client/
 import { buildDataContract } from "./contract.js";
 import { resolveProfile, pickCandidates, stepCopy } from "./adapt.js";
 
-/** assist_level/age_group/step → 생성 LLM 용 자연어 UI 규율 프롬프트. */
+/** 고령자 친화 최대 강도 규율(고정 상수). GGUI 프롬프트에 주입한다. */
+const SENIOR_INTENSITY = "고령자 친화 최대(큰 글씨·넓은 여백·강한 음성안내·카드 2장)";
+
+/** step → 생성 LLM 용 자연어 UI 규율 프롬프트(강도는 항상 고령자 최대 고정). */
 export function buildPrompt({ step, profile, transcript, candidates, orderState, possibleActions }) {
   const t = profile.tokens;
   const copy = stepCopy(step, profile, candidates);
   const structureByStep = {
-    recommend: `- ${t.card_count} large menu cards in a grid. Each card: photo (placeholder ok) + name + price + a large "Order this" button.`,
-    options: "- Choose options (temperature/size) for the selected item with large buttons. Include a clear Continue button.",
-    fulfillment: "- Two large choices: Dine In and Take Out. Show the selected item and current total.",
-    loyalty: "- Three large choices: App Coupon, Earn Points, and Skip. Make Skip safe and visible.",
+    recommend: `- ${t.card_count} large menu cards in a grid. Each card: photo (placeholder ok) + name + price + a large order button.`,
+    options: "- Choose options (temperature/size) for the selected item with large buttons. Include a clear continue button.",
+    fulfillment: "- Two large choices: dine in and take out. Show the selected item and current total.",
+    loyalty: "- Three large choices: app coupon, earn points, and skip. Make skip safe and visible.",
     payment: "- Payment method choices. Make clear that payment is not charged until final confirmation.",
-    confirm: "- Final order summary + one large Pay/Yes button and one Change button.",
+    confirm: "- Final order summary + one large pay/yes button and one change button.",
   };
   const lines = [
-    "You build a voice-adaptive kiosk UI for people who struggle with kiosks (mainly seniors aged 50+). Write ALL UI text in ENGLISH.",
-    `User utterance (STT): "${transcript ?? ""}"`,
-    `Adaptation intensity assist_level=${profile.assist_level} (effective=${profile.effective_level}), age group=${profile.age_group}.`,
+    "You build a voice-adaptive kiosk UI for people who struggle with kiosks (mainly seniors aged 50+). Write ALL UI text in KOREAN (한국어).",
+    `User utterance (STT, Korean): "${transcript ?? ""}"`,
+    `Adaptation intensity is FIXED at the maximum senior-friendly level: ${SENIOR_INTENSITY}.`,
     `Current step: ${step}.`,
     `Order state JSON: ${JSON.stringify(orderState ?? {})}.`,
     `Possible actions: ${(possibleActions ?? []).join(", ") || "none"}.`,
@@ -44,14 +47,12 @@ export function buildPrompt({ step, profile, transcript, candidates, orderState,
     structureByStep[step] ?? structureByStep.recommend,
     "- Title/guidance text at the top. No clutter.",
     "",
-    "[ADAPT CONTENT ONLY — intensity rules]",
+    "[ADAPT CONTENT ONLY — fixed senior-max intensity]",
     `- Base font ${t.base_font_px}px, title ${t.title_font_px}px+. Generous spacing (padding≈${t.card_pad_px}px, gap≈${t.gap_px}px).`,
-    t.show_desc ? "- A one-line short description is allowed." : "- Drop descriptions; show name and price only (minimize cognitive load).",
-    t.yesno_big ? "- Buttons at least half the screen width." : "- Buttons normal size, tidy.",
-    t.voice_guide
-      ? `- Show the voice guidance text on screen and pass it via the voiceGuide prop: "${copy.voice}"`
-      : "- Keep voice guidance minimal (only if needed).",
-    "- High color contrast, large touch targets, ENGLISH only.",
+    "- Drop descriptions; show name and price only (minimize cognitive load).",
+    "- Buttons at least half the screen width.",
+    `- Show the voice guidance text on screen and pass it via the voiceGuide prop: "${copy.voice}"`,
+    "- High color contrast, large touch targets, KOREAN only.",
     "",
     `Title: ${copy.title} / Guidance: ${copy.subtitle}`,
     "Use only menu items from the provided Menu catalog JSON; do not invent menu names.",
@@ -69,8 +70,6 @@ export function buildGguiProps({ step, profile, candidates, item, selectedOption
   const base = {
     title: copy.title,
     subtitle: copy.subtitle,
-    assistLevel: profile.assist_level,
-    ageGroup: profile.age_group,
     voiceGuide: profile.tokens.voice_guide ? copy.voice : "",
     orderState: orderState ?? {},
     possibleActions: possibleActions ?? [],
@@ -101,8 +100,6 @@ export function buildGguiProps({ step, profile, candidates, item, selectedOption
 export async function generateViaGgui(req, env) {
   const {
     transcript,
-    age_group,
-    assist_level,
     menu_context,
     step = "recommend",
     item,
@@ -112,7 +109,7 @@ export async function generateViaGgui(req, env) {
     possible_actions,
   } = req;
 
-  const profile = resolveProfile({ assist_level, age_group });
+  const profile = resolveProfile();
   const candidates =
     step === "recommend"
       ? (Array.isArray(menu_context) ? menu_context.filter(Boolean) : [])
@@ -178,7 +175,7 @@ export async function generateViaGgui(req, env) {
         intent: contract.intent,
         blueprintDraft: {
           contract: { propsSpec: contract.propsSpec, actionSpec: gguiActionSpec },
-          variance: { persona: `kiosk-50plus-L${profile.assist_level}`, seedPrompt: prompt },
+          variance: { persona: "kiosk-50plus-senior-max", seedPrompt: prompt },
           // generator 는 생략 → 서버 기본 생성기 사용. (provider:model 문자열은 등록된 generator id가 아님)
         },
       },
