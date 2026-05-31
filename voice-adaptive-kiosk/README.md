@@ -1,218 +1,148 @@
-# 음성 적응형 키오스크 (Voice-Adaptive Kiosk)
+# Giosk — 말하면 나에게 맞는 화면이 뜨는 음성 키오스크
 
-> **OBA Weekend-thon S1 · GGUI 트랙**
-> 한국 디지털 취약층(50+)을 위한 **음성으로 화면이 적응하는** 키오스크.
-> 같은 "라떼 하나 주세요"라도 **느린 어르신**에게는 큰 글씨·큰 카드·음성안내 화면을,
-> **빠른 청년**에게는 압축된 일반 화면을 보여준다. (= 적응 증명)
+> 마이크를 누르고 **"따뜻한 라떼 하나"** 라고 말하면, 그 말을 읽어 **큰 글씨·큰 카드의 화면이 즉석에서 만들어집니다.**
+> 어려운 메뉴 트리를 헤맬 필요도, '쉬운 모드'를 찾아 들어갈 필요도 없습니다. **말 한마디면 됩니다.**
 
-설계 문서: [SPEC.md](./SPEC.md) · [PLAN.md](./PLAN.md) · [PIPELINE.md](./PIPELINE.md)
-공유 데이터 계약(정본): [`contracts/types.ts`](./contracts/types.ts) (+ `schemas.py` 미러, `mocks.json`)
+OBA Weekend-thon · GGUI 트랙 · 한국어 음성 키오스크
 
 ---
 
-## 0. 한눈에
+## 어떤 문제를 해결하나요?
+
+키오스크는 이제 카페·식당·병원·관공서 어디에나 있습니다. 그런데 화면은 **모두에게 똑같습니다.** 작은 글씨, 빽빽한 메뉴, 여러 단계의 터치 — 익숙한 사람에겐 별것 아니지만, 그렇지 않은 사람에겐 **"내가 뒤처졌나" 하는 자책**으로 이어집니다. 실제로 많은 어르신이 키오스크 앞에서 주문을 포기하거나, 뒷사람 눈치를 보다 그냥 나가 버립니다.
+
+대한민국은 이미 **초고령사회**에 들어섰습니다. "디지털 약자"는 일부의 문제가 아니라, **곧 우리 모두가 겪을 문제**입니다. Giosk는 화면을 사람에게 맞추는 대신 사람이 화면에 맞추는 지금의 구조를, **말 한마디로 화면이 사람에게 맞춰지는 구조**로 뒤집습니다.
+
+## 누구를 위한 것인가요?
+
+- **주 타깃은 50대 이상** — 작은 글씨와 복잡한 단계가 가장 큰 벽이 되는 분들.
+- 하지만 **음성 주문은 누구에게나 편합니다.** 줄이 길 때, 손이 바쁠 때(아이를 안고 있거나 짐을 들었을 때), 처음 보는 메뉴라 무엇을 고를지 모를 때 — 말로 하는 게 빠릅니다.
+- **매장 운영자**에게도 도움이 됩니다. "이거 어떻게 해요?" 응대 부담이 줄고, 주문 포기로 인한 이탈이 줄어듭니다.
+
+## 핵심 기능과 작동 방식
 
 ```
-🎤 발화 ─► A(/analyze: STT+나이+행동신호) ─► B(/menu) ─► C(/generate-ui: GGUI 적응 UI)
-        ─► D(웹 키오스크: 일반 UI ⇄ 적응 UI + TTS) ─► B(/orders: mock 결제) ─► ✅ 완료
+🎤 마이크 버튼
+   │  "따뜻한 라떼 하나 주세요"   (한국어로 그냥 말하기)
+   ▼
+[2초 침묵 → 자동 종료]            ← 멈추라고 누를 필요 없음(server VAD)
+   ▼
+한국어 transcript                ← OpenAI Realtime 으로 실시간 전사
+   ▼
+GGUI 가 그 발화를 읽고            ← 큰 글씨·큰 카드·음성 안내 화면을 즉석 생성
+화면 전체를 바꿔서 보여줌            (일반 화면 → 나에게 맞는 화면으로 전환)
+   ▼
+추천 → 옵션 → 매장/포장 → 적립 → 결제 → 확인
+   │   각 단계는 말로도("아이스로", "포장", "카카오페이", "네") 터치로도 진행
+   ▼
+✅ 결제 완료
 ```
 
-- 실시간 데모 렌더는 **Module C LOCAL 적응 렌더러**가 메인이다. GGUI live generation은 느리거나 `codeReady=false`일 수 있어 **offline/prewarm 실험 경로**로 둔다.
-- Module A 는 STT·나이·행동신호만 담당한다.
-- **적응 신호 주축 = 행동신호 `assist_level`(0~3)**, 나이(`age`)는 보조.
-- **나이 신호 = public pretrained WavLM(`tiantiaf/wavlm-large-age-sex`)**. 행사 데모에서는 직접 학습 경로를 제거했다.
-- **mock 모드로 키·백엔드 없이 즉시 데모 가능** (이게 빠른 시작의 핵심).
+**예시 발화가 이렇게 반영됩니다.**
+
+- "**따뜻한 라떼** 하나" → 라떼류를 추천 카드로, 온도는 따뜻하게.
+- "**안 단 걸로**" → 당도를 낮춘 선택으로.
+- "**아이스로 크게**" → 온도 차갑게 + 사이즈 크게.
+- "**포장**" → 포장으로. "**카카오페이**" → 카카오페이로. "**네**" → 결제 확정.
+
+화면은 항상 **큰 글씨 + 카드 2장 + 또렷한 음성 안내**로, 인지 부담을 최소화한 구조로 고정됩니다. 바뀌는 건 *내용*뿐이고, 헷갈릴 수 있는 *구조*는 일정하게 유지됩니다.
+
+## 기존 키오스크와 무엇이 다른가요?
+
+| | 일반 키오스크 | **Giosk** |
+|---|---|---|
+| 화면 | 모두에게 **동일** | 발화를 읽어 **그 자리에서 생성** |
+| 쉬운 모드 | 메뉴를 **찾아 들어가야** 함 | 그냥 **말하면** 바로 적응 화면 |
+| 입력 | 터치 위주 | **음성 우선** + 터치 보조 |
+| 어려운 메뉴 | 단계마다 탐색 | 말 한마디로 단계 점프 |
+
+핵심은 **"쉬운 모드를 선택하는 것"이 아니라 "말하는 순간 화면이 맞춰지는 것"** 입니다. 적응을 위해 사용자가 따로 할 일이 없습니다.
 
 ---
 
-## 1. 모듈 지도
+## 시작하기
 
-| 모듈 | 디렉토리 | 역할 | 스택 | 포트 | 계약 |
-|------|----------|------|------|------|------|
-| **A** | [`module-a/`](./module-a) | 음성 → 전사 + 나이대 + 행동신호 | Python · FastAPI · faster-whisper · wav2vec2 | **8000** | `POST /analyze → AnalyzeResult` |
-| **B** | [`module-b/`](./module-b) | 메뉴 제공 + 주문 + mock 결제 | Node · Express · 시드 JSON | **8001** | `GET /menu → Menu` · `POST /orders → OrderResponse` |
-| **C** | [`module-c/`](./module-c) | 적응 UI 생성 (추천+렌더) | Node · Express · LOCAL renderer · GGUI MCP fallback/probe | **8002** | `POST /generate-ui → GenerateUIResponse` |
-| **D** | [`module-d/`](./module-d) | 웹 키오스크(일반 ⇄ 적응) · 마이크 · 오케스트레이션 | React · Vite · @ggui-ai/react | **5173** | A·B·C 호출 + mock 토글 |
-| — | [`contracts/`](./contracts) | 4모듈 공유 데이터 계약(정본) | TS 타입 + py 미러 + mock JSON | — | `types.ts` · `schemas.py` · `mocks.json` |
-
-> **포트 주의**: GGUI **MCP 뷰어**는 `6781`(`npx @ggui-ai/cli serve` 기본), Module C **`/generate-ui` 래퍼**는 `8002`.
-> D 는 **C(8002)** 를 호출하고, C 가 내부적으로 GGUI(6781) 를 호출한다. D 의 `VITE_GGUI_URL` 은 **8002**(C 래퍼)를 가리킨다.
-
----
-
-## 2. 빠른 시작
-
-### 2-A. 가장 빠른 데모 — D 만 mock 으로 (키·백엔드 0개)
-
-`VITE_USE_MOCK=true` 면 D 가 A/B/C 호출을 `contracts/mocks` 고정 JSON 으로 대체한다.
-**"발화 → 분석 → 메뉴 → 적응 UI → 결제 완료"** 전체 흐름이 화면에서 끊김 없이 돈다.
+낯선 사람이 이 저장소만 보고 **자기 OpenAI 키로 직접 실행**할 수 있도록 설계했습니다(BYOK, Bring Your Own Key).
 
 ```bash
-cd module-d
-npm install
-cp .env.example .env          # VITE_USE_MOCK=true 가 기본값
-npm run dev                   # → http://localhost:5173
+# 1) 클론
+git clone <this-repo> && cd voice-adaptive-kiosk
+
+# 2) OpenAI API 키 발급 → .env 에 넣기
+#    https://platform.openai.com → API keys → Create new secret key
+cp .env.example .env
+#    편집기로 .env 를 열어 OPENAI_API_KEY= 뒤에 키를 붙여넣고 저장
+#    (.env 는 .gitignore 로 보호되어 git 에 올라가지 않습니다)
+
+# 3) 한 번에 셋업 (4개 모듈 + Python venv)
+npm run setup
+
+# 4) 전체 기동 (A·B·C·D + GGUI 자동)
+npm run run:all        # = bash run.sh
+#    키가 있으면 GGUI 라이브로, 없으면 LOCAL 폴백으로 자동 동작합니다.
+
+# 5) (선택) GGUI 화면 미리 데우기 — 첫 주문부터 즉시 GGUI 렌더
+npm run prewarm:ggui
+
+# 6) 브라우저
+open http://localhost:5173
 ```
 
-화면에서 **마이크 버튼**을 누르면(마이크 권한 없어도 OK — 데모 발화로 진행) 적응 UI 가 뜬다.
-**어르신/청년 토글**로 같은 발화의 두 화면(assist_level 2 vs 0)을 비교 → **적응 증명**.
+브라우저에서 **🎤 음성 버튼**을 누르고 한국어로 주문해 보세요. 마이크 권한을 허용하면 OpenAI Realtime 으로 실시간 전사되고, 말이 끝나고 **2초 침묵하면 자동으로** 다음으로 넘어갑니다.
 
-### 2-B. 전체 기동 — 실제 A·B·C·D 결선(빠른 LOCAL 적응 렌더)
+### 키 없이 체험하기
 
-```bash
-# (1) 루트에서 의존성 설치 (concurrency + B/C/D 노드 모듈)
-npm run install:all
+OpenAI 키가 없어도 됩니다. 키 없이 `npm run run:all` 을 실행하면 **LOCAL 폴백 모드**로 동작합니다 — GGUI 생성 대신 내장 적응 렌더러가 **동일한 큰 글씨·큰 카드·한국어 적응 UI** 를 즉시 그립니다. 음성 주문 자체는 키(Realtime)가 필요하지만, 화면 흐름과 적응 UI 는 키 없이도 그대로 확인할 수 있습니다.
 
-# (2-i) B·C·D 동시 기동 (A 는 Python 이라 별도 — 아래 run.sh 권장)
-npm run dev:all
-
-# (2-ii) A 포함 전 모듈 백그라운드 기동 + 헬스체크  ← 권장
-bash run.sh                   # A:8000 · B:8001 · C:8002 · D:5173
-#   bash run.sh --no-a        # D 가 mock 이면 A 없이
-#   bash run.sh stop          # 포트 점유 프로세스 정리
-npm run health                # 기동 후 A/B/C/D 헬스 한 번에 확인
-```
-
-**실서비스 결선 시** D 의 `.env` 에서 `VITE_USE_MOCK=false` 로 바꾼다(아래 §4 참고). C는 기본 `GGUI_MODE=local` 그대로 두는 것이 데모 메인 경로다.
-
-### 기동 순서 (의존성)
-```
-A(8000)  ┐
-B(8001)  ├─ 서로 독립 → 아무 순서나 OK
-C(8002)  ┘   (C 는 GGUI 모드일 때만 6781 GGUI 뷰어 필요, local 모드는 단독)
-D(5173)  ── 마지막. A/B/C 가 떠 있으면 실호출, mock 이면 단독
-```
+> 프론트만 mock 으로 빠르게 보고 싶다면 `module-d/.env.local` 에서 `VITE_USE_MOCK=true` 로 두면 백엔드 없이 화면 흐름이 돕니다.
 
 ---
 
-## 3. 포트 맵
+## 아키텍처
 
-| 포트 | 모듈 | 엔드포인트 | 비고 |
-|------|------|-----------|------|
-| **8000** | A | `POST /analyze` · `GET /health` | `MOCK_MODE=1` 이면 오디오 없이도 동작 |
-| **8001** | B | `GET /menu` · `GET /menu/search` · `POST /orders` · `GET /orders/:id` | 시드 JSON in-memory |
-| **8002** | C | `POST /generate-ui` · `GET /r/:id` · `GET /health` | `GGUI_MODE=local` 기본. 실데모 메인 |
-| **6781** | GGUI 뷰어 | (MCP + 렌더 뷰어) | `GGUI_MODE=ggui` offline/prewarm 실험 때만 필요 |
-| **5173** | D | (Vite dev) | 데모 진입점 |
+4개 모듈이 함께 돕니다. 음성은 브라우저가 OpenAI 에 **직접** WebRTC 로 붙고(백엔드는 1분짜리 임시 토큰만 발급 — 원본 키는 절대 브라우저로 나가지 않음), 화면 생성은 GGUI 가 담당합니다.
+
+| 모듈 | 역할 | 스택 | 포트 |
+|------|------|------|------|
+| **A** | 음성 Realtime STT 중계 — ephemeral 세션 토큰 발급(`/realtime/session`), 오디오 업로드 STT 폴백(`/analyze`) | Python · FastAPI · OpenAI | **8000** |
+| **B** | 메뉴 제공 + 주문 + mock 결제 | Node · Express · 시드 JSON | **8001** |
+| **C** | GGUI 적응 UI 생성 — 발화·주문상태를 받아 화면 생성(`/generate-ui`), 한국어 의도해석(`/ground-intent`) | Node · Express · GGUI MCP | **8002** |
+| **D** | 웹 키오스크 프론트 — 마이크·오케스트레이션·일반↔적응 화면 전환·음성 안내(TTS) | React · Vite | **5173** |
+| — | GGUI MCP 생성 서버(키 있을 때 C 가 호출, run.sh 가 자동 기동/재사용) | `@ggui-ai/cli` | 6781 |
+| — | 4모듈 공유 데이터 계약(정본) | `contracts/types.ts` · `schemas.py` · `mocks.json` | — |
+
+```
+🎤 D(브라우저) ──WebRTC──► OpenAI Realtime         (A 가 임시 토큰만 발급)
+        │  transcript
+        ▼
+   C(/ground-intent, /generate-ui) ──► GGUI(6781)  큰글씨·큰카드 화면 생성
+        │            ▲
+        │            └── B(/menu) 메뉴·옵션
+        ▼
+   D 가 화면 렌더 + 음성 안내 ──► B(/orders) mock 결제 ──► ✅ 완료
+```
+
+**GGUI 라이브가 메인, LOCAL 이 폴백입니다.** 키가 있으면 C 가 GGUI 로 화면을 생성하고(`X-GGUI-Path: ggui`), GGUI 가 느리거나(콜드 생성 30~40초) 키가 없으면 내장 LOCAL 렌더러로 즉시 폴백합니다(`local-fallback`). GGUI 캐시는 화면 구조 단위라, **한 번 생성된 화면은 이후 어떤 발화에도 즉시** 뜹니다 — `npm run prewarm:ggui` 로 6개 화면을 미리 데워 두면 첫 주문부터 매끄럽습니다.
+
+### 한 번에 보는 명령
+
+```bash
+npm run setup          # 4모듈 node 의존성 + Module A Python venv
+npm run run:all        # 전체 기동(= bash run.sh) + 헬스체크
+npm run health         # A/B/C/D 헬스 한 번에 확인
+npm run prewarm:ggui   # GGUI 6개 화면 프리워밍(라이브 즉시 렌더)
+npm run verify         # Module C 테스트 + Module D typecheck/build
+bash run.sh stop       # 포트(8000/8001/8002/5173/6781) 정리
+```
+
+### 기술 스택
+
+OpenAI **Realtime API**(음성 STT, server VAD 2초 자동종료) · OpenAI **Responses API**(GGUI UI 생성 + 한국어 의도해석) · **GGUI MCP**(적응 UI 생성 엔진) · React + Vite + Pretendard(프론트) · FastAPI(Python) · Express(Node).
 
 ---
 
-## 4. .env 설정
+## 더 보기
 
-루트 [`.env.example`](./.env.example) 에 **전 모듈 변수**가 모여 있다. 각 모듈은 자기 디렉토리에 `.env` 를 두거나 루트 값을 공유한다.
-
-```bash
-cp .env.example .env                  # 루트 (전 모듈 참고용)
-cp module-d/.env.example module-d/.env # D (Vite — VITE_ 접두사만 브라우저 노출)
-cp module-c/.env.example module-c/.env # C (OPENAI/GGUI 키)
-cp module-a/.env.example module-a/.env # A (STT/ElevenLabs)
-```
-
-핵심 변수:
-
-| 변수 | 모듈 | 의미 |
-|------|------|------|
-| `VITE_USE_MOCK` | D | `true`=mock(키·백엔드 불필요) / `false`=실호출 |
-| `VITE_ANALYZE_URL` | D | A 주소. **원격 추론 시 이 값만 교체** |
-| `VITE_MENU_URL` / `VITE_GGUI_URL` | D | B(8001) / C(**8002**) 주소 |
-| `MOCK_MODE` | A | `1`=모델 없이 고정 시나리오 / `0`=실모델 |
-| `AGE_MODEL_PROVIDER` | A | `wavlm_age_sex`=현재 데모의 pretrained WavLM provider |
-| `GGUI_MODE` | C | `local`=키 없이 빠른 내장 렌더(데모 메인) / `ggui`=GGUI+OpenAI 실험 |
-| `OPENAI_API_KEY` | A/C | A의 한국어 주문→영어 proxy 번역 + C의 GGUI 생성 LLM(BYOK). **OAuth 미지원 → raw 키 필요** |
-| `ORDER_TRANSLATION_MODEL` | A | `gpt-4.1-mini` 기본. `build_english_order_proxy()` Responses API 번역 모델 |
-| `GGUI_MODEL` | C | `openai:gpt-5.5-2026-04-23` (GGUI 기본 OpenAI 라우트) |
-
----
-
-## 5. GGUI / OpenAI 연결 (offline/prewarm 실험)
-
-기본 `GGUI_MODE=local` 은 **키 없이** C 가 적응 HTML 을 직접 렌더한다. 실시간 키오스크에서는 이 경로가 메인이다.
-
-GGUI live generation은 `ggui_push`가 URL을 반환해도 `codeReady=false`면 viewer가 202 `Generating UI...`에 머물 수 있고, 정상 생성되어도 화면별 React component 생성 시간이 길다. 따라서 아래는 발표 메인 경로가 아니라 **오프라인 생성/캐시(prewarm) 가능성 확인용**이다.
-
-```bash
-# 1) GGUI MCP+뷰어 서버 기동 (기본 포트 6781)
-export OPENAI_API_KEY=sk-...                 # ★ raw OpenAI 키 (OAuth 미지원)
-npx -y @ggui-ai/cli@latest serve --dev-allow-all --port 6781
-
-# 2) Module C 를 GGUI 모드로 기동
-cd ../voice-adaptive-kiosk/module-c
-GGUI_MODE=ggui GGUI_FORCE_CREATE=1 OPENAI_API_KEY=sk-... node server.js   # :8002
-
-# 3) 생성 가능성 probe. codeReady=false면 local-fallback이 정상 안전망.
-cd ..
-npm run probe:ggui
-```
-
-- C(`src/ggui-client.js`)가 GGUI 의 `ggui_new_session` → `ggui_handshake` → `ggui_push`를 호출한다.
-- `GGUI_FORCE_CREATE=1`은 handshake에 `forceCreate:true`를 실어 blueprint cache를 우회한다.
-- `ggui_push` 결과가 `codeReady=true`일 때만 GGUI `embed_url`을 D에 넘긴다.
-- `codeReady=false`, 키/서버 오류, 생성 실패는 모두 **LOCAL fallback**으로 전환한다(`X-GGUI-Path: local-fallback`).
-- 사용 API = OpenAI **Responses API**. GGUI는 `GGUI_MODEL`, Module A 주문 번역은 `ORDER_TRANSLATION_MODEL` 모델 접근 권한이 있는 키여야 한다.
-
----
-
-## 6. Module A 현재 모델 경로
-
-행사 데모에서는 AIHub 직접 학습과 checkpoint 이식 경로를 제거했다. Module A는
-`AGE_MODEL_PROVIDER=wavlm_age_sex`로 `tiantiaf/wavlm-large-age-sex` pretrained
-model을 로드하고, 행동신호(`assist_level`)와 함께 rough age signal로만 사용한다.
-
-```bash
-cd module-a
-PYTHON=.venv/bin/python ./run_local.sh
-```
-
-- local fine-tuned checkpoint directory(`models/age_model`)는 사용하지 않는다.
-- `/demo/batch-summary` 같은 검증 artifact endpoint도 데모 표면에서 제거했다.
-- 실제 제출 흐름은 Module D의 kiosk UI에서만 보여준다.
-
----
-
-## 7. 동작 검증 (E2E mock 스모크)
-
-mock 흐름이 **"발화 → analyze → menu → generate-ui(local) → 결제완료"** 로 끊김 없이 이어짐을 확인:
-
-```bash
-# B·C 를 띄우고 체인 호출
-PORT=8001 node module-b/server.js &
-PORT=8002 GGUI_MODE=local node module-c/server.js &
-
-curl -s http://localhost:8001/menu                                  # → Menu (48 items)
-curl -s "http://localhost:8001/menu/search?q=라떼"                   # → 라떼 후보
-curl -s -X POST http://localhost:8002/generate-ui \
-  -H 'Content-Type: application/json' \
-  -d '{"transcript":"라떼 하나 주세요","age_group":"50+","assist_level":2,"menu_context":[],"step":"recommend"}'
-                                                                     # → {render_id, embed_url, contract}
-curl -s -X POST http://localhost:8001/orders \
-  -H 'Content-Type: application/json' \
-  -d '{"items":[{"item_id":"cafelatte-003","options":{"온도":"HOT"},"qty":1}]}'   # → status:"paid"
-```
-
-D 단독(mock) 검증: `cd module-d && npm run typecheck` (계약 타입 정합) → `npm run dev` 후 마이크 버튼.
-
-통합 코드 검증:
-
-```bash
-npm run verify       # Module C regression + Module D typecheck/build
-npm run probe:ggui   # C가 ggui/local/local-fallback 중 무엇을 반환하는지 확인
-```
-
----
-
-## 8. 디렉토리
-
-```
-voice-adaptive-kiosk/
-├── README.md            ← (이 파일) 루트 통합 가이드
-├── package.json         ← dev:all (B/C/D concurrently) · install:all · health
-├── run.sh               ← A(uvicorn)+B/C(node)+D(vite) 백그라운드 기동 + 헬스체크
-├── scripts/health.mjs   ← 전 모듈 헬스체크
-├── .env.example         ← 전 모듈 환경변수 모음
-├── SPEC.md · PLAN.md · PIPELINE.md
-├── contracts/           ← 공유 계약 (types.ts · schemas.py · mocks.json)
-├── module-a/            ← AI 추론 (FastAPI)
-├── module-b/            ← 메뉴/주문 (Express)
-├── module-c/            ← GGUI 적응 UI 생성 (Express + GGUI MCP)
-└── module-d/            ← 웹 키오스크 (React/Vite)
-```
+- 설계 배경: [`docs/superpowers/specs/2026-05-31-voice-kiosk-korean-rework-design.md`](./docs/superpowers/specs/2026-05-31-voice-kiosk-korean-rework-design.md)
+- 공유 데이터 계약: [`contracts/`](./contracts) (`types.ts` 정본 + `schemas.py` 미러 + `mocks.json`)
+- 모듈별 상세: 각 `module-*/README.md`
