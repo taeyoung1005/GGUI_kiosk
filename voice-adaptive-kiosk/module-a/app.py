@@ -1,16 +1,11 @@
 from __future__ import annotations
 
 import os
-import tempfile
-import time
 from pathlib import Path
 
-import librosa
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, Header, HTTPException, UploadFile
+from fastapi import FastAPI, Header, HTTPException, Response
 from fastapi.middleware.cors import CORSMiddleware
-
-from inference.stt import NoopSTT, create_stt
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
@@ -32,18 +27,21 @@ load_shared_dotenv()
 
 API_KEY = os.getenv("API_KEY", "")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-STT_MODEL = os.getenv("STT_MODEL", "whisper-1")
-STT_LANGUAGE = os.getenv("STT_LANGUAGE", "ko")
-STT_DEVICE = os.getenv("STT_DEVICE", "cpu")
-STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "int8")
 OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime")
 OPENAI_REALTIME_LANGUAGE = os.getenv("OPENAI_REALTIME_LANGUAGE", "ko")
 # GA Realtime 은 input audio transcription 에 model 을 필수로 요구한다.
-# (whisper-1 / gpt-4o-transcribe / gpt-4o-mini-transcribe)
+# 예: gpt-4o-transcribe / gpt-4o-mini-transcribe
 OPENAI_REALTIME_TRANSCRIBE_MODEL = os.getenv(
     "OPENAI_REALTIME_TRANSCRIBE_MODEL", "gpt-4o-transcribe"
 )
 OPENAI_REALTIME_SILENCE_MS = int(os.getenv("OPENAI_REALTIME_SILENCE_MS", "2000"))
+# 음성 안내(announcer) — OpenAI Realtime 으로 TTS. 별도 키 없이 OPENAI_API_KEY 하나로 동작.
+OPENAI_TTS_VOICE = os.getenv("OPENAI_TTS_VOICE", "alloy")
+OPENAI_TTS_INSTRUCTIONS = os.getenv(
+    "OPENAI_TTS_INSTRUCTIONS",
+    "너는 키오스크 안내 방송 TTS다. 사용자가 준 한국어 문장을 또박또박, "
+    "친절한 안내 방송 톤으로 그대로 읽어라. 다른 말은 절대 덧붙이지 마라.",
+)
 
 app = FastAPI(title="Voice Adaptive Kiosk Analyze API")
 cors_origins = [
@@ -58,8 +56,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-_stt = None
-
 
 def require_auth(authorization: str | None) -> None:
     if not API_KEY:
@@ -69,24 +65,88 @@ def require_auth(authorization: str | None) -> None:
         raise HTTPException(status_code=401, detail="Unauthorized")
 
 
-def get_stt():
-    global _stt
-    if _stt is None:
-        try:
-            _stt = create_stt(STT_MODEL, STT_DEVICE, STT_COMPUTE_TYPE, STT_LANGUAGE)
-        except Exception:
-            _stt = NoopSTT()
-    return _stt
-
-
 @app.get("/health")
 def health():
     return {
         "ok": True,
-        "stt_model": STT_MODEL,
-        "stt_language": STT_LANGUAGE,
         "realtime_ready": bool(OPENAI_API_KEY),
+        "tts_ready": bool(OPENAI_API_KEY),
     }
+
+
+def _realtime_tts_wav(text: str) -> bytes:
+    """OpenAI Realtime 으로 한국어 안내문을 음성 합성해 WAV(pcm16 24kHz mono) 로 반환."""
+    import base64
+    import io
+    import wave
+
+    from openai import OpenAI
+
+    client = OpenAI(api_key=OPENAI_API_KEY)
+    pcm = bytearray()
+    with client.realtime.connect(model=OPENAI_REALTIME_MODEL) as conn:
+        conn.send(
+            {
+                "type": "session.update",
+                "session": {
+                    "type": "realtime",
+                    "output_modalities": ["audio"],
+                    "audio": {"output": {"voice": OPENAI_TTS_VOICE}},
+                    "instructions": OPENAI_TTS_INSTRUCTIONS,
+                },
+            }
+        )
+        conn.send(
+            {
+                "type": "conversation.item.create",
+                "item": {
+                    "type": "message",
+                    "role": "user",
+                    "content": [{"type": "input_text", "text": text}],
+                },
+            }
+        )
+        conn.send({"type": "response.create"})
+        for event in conn:
+            etype = getattr(event, "type", "")
+            if etype == "response.output_audio.delta":
+                delta = getattr(event, "delta", "")
+                if delta:
+                    pcm += base64.b64decode(delta)
+            elif etype == "response.done":
+                break
+            elif etype == "error":
+                raise RuntimeError(str(getattr(event, "error", event)))
+
+    if len(pcm) < 100:
+        raise RuntimeError("Realtime 가 오디오를 반환하지 않았습니다.")
+
+    buf = io.BytesIO()
+    with wave.open(buf, "wb") as wav:
+        wav.setnchannels(1)
+        wav.setsampwidth(2)
+        wav.setframerate(24000)
+        wav.writeframes(bytes(pcm))
+    return buf.getvalue()
+
+
+@app.post("/tts")
+def tts(payload: dict, authorization: str | None = Header(default=None)):
+    """음성 안내(announcer) — OpenAI Realtime 으로 한국어 TTS(WAV) 를 합성해 돌려준다.
+    별도 음성 키 없이 OPENAI_API_KEY 하나로 동작. 키가 없으면 503 → 프론트가
+    브라우저 TTS 로 폴백한다.
+    """
+    require_auth(authorization)
+    text = str((payload or {}).get("text", "")).strip()
+    if not text:
+        raise HTTPException(status_code=400, detail="text 가 비어 있습니다.")
+    if not OPENAI_API_KEY:
+        raise HTTPException(status_code=503, detail="OPENAI_API_KEY 가 설정되지 않았습니다.")
+    try:
+        audio = _realtime_tts_wav(text)
+    except Exception as exc:  # noqa: BLE001
+        raise HTTPException(status_code=502, detail=f"Realtime TTS 실패: {exc}") from exc
+    return Response(content=audio, media_type="audio/wav")
 
 
 @app.post("/realtime/session")
@@ -141,25 +201,3 @@ def realtime_session(authorization: str | None = Header(default=None)):
         "model": OPENAI_REALTIME_MODEL,
         "expires_at": secret.expires_at,
     }
-
-
-@app.post("/analyze")
-async def analyze(file: UploadFile = File(...), authorization: str | None = Header(default=None)):
-    require_auth(authorization)
-    started = time.perf_counter()
-
-    suffix = Path(file.filename or "audio.wav").suffix or ".wav"
-    with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
-        tmp.write(await file.read())
-        tmp_path = Path(tmp.name)
-
-    try:
-        librosa.load(tmp_path, sr=16000, mono=True)
-        stt = get_stt().transcribe(str(tmp_path))
-        return {
-            "transcript": stt.text,
-            "language": stt.language,
-            "duration_ms": int((time.perf_counter() - started) * 1000),
-        }
-    finally:
-        tmp_path.unlink(missing_ok=True)

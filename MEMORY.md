@@ -648,3 +648,28 @@
   - live `/ground-intent`: `유자차 주문해줘` -> `yuzu-tea-032`, `오트밀크로 덜 달게` -> `{ Milk:"Oat Milk", Sweetness:"Less Sweet" }`, `카드로 결제` -> `Credit Card`.
   - live 데모 URL `http://127.0.0.1:5173/`: 유자차/소금빵/딸기 케이크/라떼 4개 recommend 케이스에서 grounding input은 메뉴 48개, GGUI input은 1~5개 후보, 모두 `X-GGUI-Path=ggui`.
   - live 전체 라떼 주문 플로우: `라떼 주문해줘 -> caffe latte -> iced large -> take out -> skip points -> credit card -> yes`가 recommend/options/fulfillment/loyalty/payment/confirm 전 단계를 거쳐 `Payment Complete!`까지 성공. 기록상 6번의 `/generate-ui` 모두 `X-GGUI-Path=ggui`, fallback 0회.
+
+## 2026-05-31 — 루트 `ggui/` submodule 제거 가능성 점검
+
+- 사용자 질문: 로컬 `ggui/` repo는 더 이상 쓰지 않고 published package/npx 기반으로만 쓰는 것 아니냐는 확인.
+- 확인 결과:
+  - 루트 `ggui/`는 `.gitmodules`에 등록된 submodule이며 index상 `160000 619ae2e... ggui` gitlink다.
+  - 현재 실행 경로는 `voice-adaptive-kiosk/run.sh`가 `npx -y @ggui-ai/cli@${GGUI_CLI_VERSION:-0.2.0-alpha.4} serve ...`로 GGUI MCP 서버를 띄운다.
+  - Module D는 optional dependency `@ggui-ai/react`를 package 설치 대상으로만 갖고 있고, 최근 구현은 `srcDoc`/iframe 렌더를 사용한다.
+  - `rg` 기준 앱 코드/스크립트에서 `../ggui` 또는 루트 `ggui/` 로컬 경로를 직접 참조하는 실행 경로는 발견되지 않았다.
+  - `git -C ggui status --short`는 clean.
+- 결론: 현재 기준 로컬 `ggui/` submodule은 삭제해도 동작 경로에는 영향이 없어 보인다. 삭제 시에는 단순 폴더 삭제가 아니라 `git submodule deinit -f ggui`, `git rm -f ggui`, `.gitmodules` 제거/정리, 필요 시 `.git/modules/ggui` 정리까지 함께 해야 한다.
+- 후속 조치: 사용자 확인 후 `git submodule deinit -f ggui`, `git rm -f ggui`, `rm -rf .git/modules/ggui`, `git rm -f .gitmodules`로 로컬 GGUI submodule과 빈 `.gitmodules`를 제거했다.
+- 제거 후 확인: `ggui/` 폴더 없음, `.git/modules/ggui` 없음, `git config --get-regexp '^submodule\.ggui\.'` 결과 없음. 현재 실행은 계속 `npx @ggui-ai/cli@0.2.0-alpha.4` 기반이다.
+
+## 2026-05-31 — Whisper/upload STT 레거시 제거
+
+- 사용자 지적: 이전 Whisper 기반 STT 결정을 되돌렸는데 관련 레거시가 남아 있을 가능성이 있어 제거 필요.
+- 변경:
+  - Module A에서 `POST /analyze` multipart audio STT endpoint 제거. 현재 A 역할은 `/realtime/session`, `/tts`, `/health`만.
+  - `module-a/inference/stt.py`, `tests/test_stt_config.py`, `requirements-public-age.txt` 삭제.
+  - `requirements.txt`에서 `librosa`, `numpy`, `python-multipart`, `soundfile` 제거.
+  - `.env.example`, `module-a/.env.example`, `run.sh`, Module A/D README, SPEC/PIPELINE/PLAN/NEXT_TASKS/specs 문서를 Realtime 중심 구조로 갱신.
+  - 로컬 ignored `module-a/vendor/` Vox-Profile clone 제거.
+  - Module D `analyze()`는 Realtime transcript wrapper만 남기고 live audio upload fallback 호출을 제거.
+- TDD: `tests/test_no_legacy_stt.py` 추가. 기존 코드에서 `/analyze` 등록과 health `stt_model` 노출 때문에 RED 실패 확인 후 제거.
