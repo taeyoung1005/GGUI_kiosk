@@ -773,3 +773,10 @@ curl -s -X POST http://localhost:8000/analyze   # mock에선 오디오 없이도
 - 정적: app.py py_compile, module-a unittest 8/8, npm run verify(module-c 25 + module-d typecheck/build) 전부 PASS. run.sh bash -n OK.
 - 동적(라이브 curl): health 4포트 200, /realtime/session 200(ek_…), /generate-ui ggui codeReady, /ground-intent 한국어 6종 정확(따뜻한 라떼→select_item, 포장→Take Out, 카카오페이→Kakao Pay, 네→yes 등), /orders total 정합(4500=4500).
 - 스크린샷 e2e(Playwright, scripts/screenshot-flow.mjs · npm run screenshot): RTCPeerConnection 비활성→데모 발화 경로로 마이크 없이 실제 백엔드+GGUI 구동. window.__giosk(App.tsx dev 훅, 프로덕션 제거)로 respeak() 진행. **8장 캡처**: 01-idle(일반 키오스크) + 02~07 적응단계 **전부 GGUI 라이브 렌더**(recommend/options/fulfillment/loyalty/payment/confirm) + 08-done(결제완료 ord-1003, 합계 ₩5,500=바닐라라떼5000+사이즈크게500). `.run-logs/screenshots/*.png`(gitignore). GGUI iframe은 고정높이라 하단 일부 클리핑(콘텐츠 정상).
+
+### Realtime WebRTC 핸드셰이크 GA 엔드포인트 수정 (커밋 bf1402c) ★미검증 #1 음성부분 해소★
+- 사용자 실제 마이크 테스트에서 "OpenAI Realtime 핸드셰이크 실패: 400" 발견. 브라우저 실측 진단(playwright + 실제 RTCPeerConnection SDP):
+  - `POST /v1/realtime?model=` → 400 "The Realtime Beta API is no longer supported" (구 베타 폐기)
+  - `POST /v1/realtime/calls?model=` → **201 + answer SDP** (GA)
+- realtime.ts exchangeSdp 의 URL 을 `/v1/realtime/calls` 로 수정. 헤드리스 검증(가짜 마이크): SDP 201 → connectionState=connected, ice=connected → data channel로 **session.created 이벤트 수신**. 실제 발화 transcription만 사람 마이크로 확인하면 됨(연결·세션은 검증 완료).
+- ※ secure context 필요: getUserMedia/mediaDevices 는 localhost(또는 https)에서만. about:blank 불가.
