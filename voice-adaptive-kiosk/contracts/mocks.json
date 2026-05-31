@@ -5,59 +5,59 @@
     "duration_ms": 1850
   },
   "sampleMenu": {
-    "restaurant": "OBA Cafe",
+    "restaurant": "OBA 카페",
     "categories": [
-      "Coffee",
-      "Latte",
-      "Tea",
-      "Ade",
-      "Beverage",
-      "Dessert"
+      "커피",
+      "라떼",
+      "티",
+      "에이드",
+      "음료",
+      "디저트"
     ],
     "items": [
       {
         "id": "americano-001",
-        "name": "Americano",
-        "category": "Coffee",
+        "name": "아메리카노",
+        "category": "커피",
         "price": 3500,
         "image_url": "/img/menu/americano-001.svg",
-        "desc": "A clean espresso-forward coffee with a smooth finish.",
+        "desc": "에스프레소 본연의 깔끔하고 부드러운 마무리가 좋은 커피예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Shot",
+            "type": "샷",
             "choices": [
               {
-                "label": "Single",
+                "label": "싱글",
                 "price_delta": 0
               },
               {
-                "label": "Double",
+                "label": "더블",
                 "price_delta": 500
               }
             ]
@@ -66,34 +66,34 @@
       },
       {
         "id": "espresso-002",
-        "name": "Espresso",
-        "category": "Coffee",
+        "name": "에스프레소",
+        "category": "커피",
         "price": 3000,
         "image_url": "/img/menu/espresso-002.svg",
-        "desc": "A short, bold shot with deep roasted aroma.",
+        "desc": "진한 로스팅 향이 가득한 짧고 묵직한 한 잔이에요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Shot",
+            "type": "샷",
             "choices": [
               {
-                "label": "Single",
+                "label": "싱글",
                 "price_delta": 0
               },
               {
-                "label": "Double",
+                "label": "더블",
                 "price_delta": 500
               }
             ]
@@ -102,68 +102,68 @@
       },
       {
         "id": "caffe-latte-003",
-        "name": "Caffe Latte",
-        "category": "Latte",
+        "name": "카페라떼",
+        "category": "라떼",
         "price": 4500,
         "image_url": "/img/menu/caffe-latte-003.svg",
-        "desc": "Classic espresso with silky steamed milk.",
+        "desc": "에스프레소에 부드럽게 스팀한 우유를 더한 기본 라떼예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -172,68 +172,68 @@
       },
       {
         "id": "vanilla-latte-004",
-        "name": "Vanilla Latte",
-        "category": "Latte",
+        "name": "바닐라 라떼",
+        "category": "라떼",
         "price": 5000,
         "image_url": "/img/menu/vanilla-latte-004.svg",
-        "desc": "A smooth latte sweetened with warm vanilla syrup.",
+        "desc": "따뜻한 바닐라 시럽으로 은은하게 단맛을 더한 부드러운 라떼예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -242,68 +242,68 @@
       },
       {
         "id": "matcha-latte-005",
-        "name": "Matcha Latte",
-        "category": "Latte",
+        "name": "말차 라떼",
+        "category": "라떼",
         "price": 5200,
         "image_url": "/img/menu/matcha-latte-005.svg",
-        "desc": "Japanese matcha blended with creamy milk.",
+        "desc": "일본식 말차를 크리미한 우유와 곱게 섞은 라떼예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -312,68 +312,68 @@
       },
       {
         "id": "caramel-latte-006",
-        "name": "Caramel Latte",
-        "category": "Latte",
+        "name": "카라멜 라떼",
+        "category": "라떼",
         "price": 5200,
         "image_url": "/img/menu/caramel-latte-006.svg",
-        "desc": "A rich latte topped with buttery caramel flavor.",
+        "desc": "고소한 카라멜 풍미를 올린 진하고 부드러운 라떼예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -382,68 +382,68 @@
       },
       {
         "id": "hazelnut-latte-007",
-        "name": "Hazelnut Latte",
-        "category": "Latte",
+        "name": "헤이즐넛 라떼",
+        "category": "라떼",
         "price": 5200,
         "image_url": "/img/menu/hazelnut-latte-007.svg",
-        "desc": "A nutty latte with fragrant hazelnut syrup.",
+        "desc": "향긋한 헤이즐넛 시럽을 더한 고소한 라떼예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -452,68 +452,68 @@
       },
       {
         "id": "mocha-latte-008",
-        "name": "Mocha Latte",
-        "category": "Latte",
+        "name": "모카 라떼",
+        "category": "라떼",
         "price": 5500,
         "image_url": "/img/menu/mocha-latte-008.svg",
-        "desc": "Chocolate, espresso, and milk in one cozy latte.",
+        "desc": "초콜릿과 에스프레소, 우유가 어우러진 포근한 라떼예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -522,34 +522,34 @@
       },
       {
         "id": "earl-grey-tea-009",
-        "name": "Earl Grey Tea",
-        "category": "Tea",
+        "name": "얼그레이 티",
+        "category": "티",
         "price": 4000,
         "image_url": "/img/menu/earl-grey-tea-009.svg",
-        "desc": "Black tea with bright bergamot citrus notes.",
+        "desc": "베르가못 시트러스 향이 산뜻하게 도는 홍차예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
@@ -558,51 +558,51 @@
       },
       {
         "id": "lemon-ade-010",
-        "name": "Lemon Ade",
-        "category": "Ade",
+        "name": "레몬 에이드",
+        "category": "에이드",
         "price": 5000,
         "image_url": "/img/menu/lemon-ade-010.svg",
-        "desc": "Sparkling lemonade with a crisp citrus bite.",
+        "desc": "상큼한 레몬 향이 톡 쏘는 탄산 에이드예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -611,51 +611,51 @@
       },
       {
         "id": "grapefruit-ade-011",
-        "name": "Grapefruit Ade",
-        "category": "Ade",
+        "name": "자몽 에이드",
+        "category": "에이드",
         "price": 5500,
         "image_url": "/img/menu/grapefruit-ade-011.svg",
-        "desc": "Refreshing sparkling ade with real grapefruit pulp.",
+        "desc": "진짜 자몽 과육을 넣어 상쾌한 탄산 에이드예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -664,51 +664,51 @@
       },
       {
         "id": "strawberry-smoothie-012",
-        "name": "Strawberry Smoothie",
-        "category": "Beverage",
+        "name": "딸기 스무디",
+        "category": "음료",
         "price": 5800,
         "image_url": "/img/menu/strawberry-smoothie-012.svg",
-        "desc": "Blended strawberry and yogurt for a cool treat.",
+        "desc": "딸기와 요거트를 곱게 갈아 시원하게 즐기는 스무디예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -717,70 +717,70 @@
       },
       {
         "id": "new-york-cheesecake-013",
-        "name": "New York Cheesecake",
-        "category": "Dessert",
+        "name": "뉴욕 치즈케이크",
+        "category": "디저트",
         "price": 6000,
         "image_url": "/img/menu/new-york-cheesecake-013.svg",
-        "desc": "Dense and creamy cheesecake with a buttery crust.",
+        "desc": "버터향 크러스트 위에 진하고 크리미한 치즈케이크예요.",
         "options": []
       },
       {
         "id": "basque-cheesecake-014",
-        "name": "Basque Cheesecake",
-        "category": "Dessert",
+        "name": "바스크 치즈케이크",
+        "category": "디저트",
         "price": 6500,
         "image_url": "/img/menu/basque-cheesecake-014.svg",
-        "desc": "Burnt-top cheesecake with a soft custard center.",
+        "desc": "겉은 그을리고 속은 부드러운 커스터드 치즈케이크예요.",
         "options": []
       },
       {
         "id": "chocolate-brownie-015",
-        "name": "Chocolate Brownie",
-        "category": "Dessert",
+        "name": "초콜릿 브라우니",
+        "category": "디저트",
         "price": 4800,
         "image_url": "/img/menu/chocolate-brownie-015.svg",
-        "desc": "Fudgy chocolate brownie with a crisp top.",
+        "desc": "겉은 바삭하고 속은 촉촉한 진한 초콜릿 브라우니예요.",
         "options": []
       },
       {
         "id": "blueberry-muffin-016",
-        "name": "Blueberry Muffin",
-        "category": "Dessert",
+        "name": "블루베리 머핀",
+        "category": "디저트",
         "price": 4200,
         "image_url": "/img/menu/blueberry-muffin-016.svg",
-        "desc": "Soft muffin packed with sweet blueberries.",
+        "desc": "달콤한 블루베리가 가득한 부드러운 머핀이에요.",
         "options": []
       },
       {
         "id": "lemon-pound-cake-017",
-        "name": "Lemon Pound Cake",
-        "category": "Dessert",
+        "name": "레몬 파운드케이크",
+        "category": "디저트",
         "price": 4500,
         "image_url": "/img/menu/lemon-pound-cake-017.svg",
-        "desc": "Moist lemon cake with a light citrus glaze.",
+        "desc": "산뜻한 레몬 글레이즈를 올린 촉촉한 케이크예요.",
         "options": []
       },
       {
         "id": "butter-croffle-018",
-        "name": "Butter Croffle",
-        "category": "Dessert",
+        "name": "버터 크로플",
+        "category": "디저트",
         "price": 5500,
         "image_url": "/img/menu/butter-croffle-018.svg",
-        "desc": "A crisp croissant waffle served warm with butter.",
+        "desc": "크루아상 와플을 바삭하게 구워 버터와 따뜻하게 내는 디저트예요.",
         "options": [
           {
-            "type": "Topping",
+            "type": "토핑",
             "choices": [
               {
-                "label": "Plain",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Ice Cream",
+                "label": "아이스크림",
                 "price_delta": 1500
               },
               {
-                "label": "Maple Syrup",
+                "label": "메이플 시럽",
                 "price_delta": 500
               }
             ]
@@ -789,21 +789,21 @@
       },
       {
         "id": "tiramisu-cup-019",
-        "name": "Tiramisu Cup",
-        "category": "Dessert",
+        "name": "티라미수 컵",
+        "category": "디저트",
         "price": 6500,
         "image_url": "/img/menu/tiramisu-cup-019.svg",
-        "desc": "Coffee-soaked cake layered with mascarpone cream.",
+        "desc": "커피를 머금은 케이크에 마스카포네 크림을 층층이 올린 디저트예요.",
         "options": [
           {
-            "type": "Whipped Cream",
+            "type": "휘핑크림",
             "choices": [
               {
-                "label": "No Whip",
+                "label": "휘핑 없이",
                 "price_delta": 0
               },
               {
-                "label": "Add Whip",
+                "label": "휘핑 추가",
                 "price_delta": 500
               }
             ]
@@ -812,25 +812,25 @@
       },
       {
         "id": "macaron-set-020",
-        "name": "Macaron Set",
-        "category": "Dessert",
+        "name": "마카롱 세트",
+        "category": "디저트",
         "price": 7000,
         "image_url": "/img/menu/macaron-set-020.svg",
-        "desc": "A colorful set of crisp almond macarons.",
+        "desc": "바삭한 아몬드 마카롱을 색색으로 담은 세트예요.",
         "options": [
           {
-            "type": "Flavor",
+            "type": "맛",
             "choices": [
               {
-                "label": "Assorted",
+                "label": "모둠",
                 "price_delta": 0
               },
               {
-                "label": "Chocolate",
+                "label": "초콜릿",
                 "price_delta": 0
               },
               {
-                "label": "Berry",
+                "label": "베리",
                 "price_delta": 0
               }
             ]
@@ -839,47 +839,47 @@
       },
       {
         "id": "cold-brew-021",
-        "name": "Cold Brew",
-        "category": "Coffee",
+        "name": "콜드브루",
+        "category": "커피",
         "price": 4300,
         "image_url": "/img/menu/cold-brew-021.svg",
-        "desc": "Slow-steeped coffee served cold with a clean finish.",
+        "desc": "오래 우려 깔끔하게 마무리되는 차가운 커피예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               },
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Shot",
+            "type": "샷",
             "choices": [
               {
-                "label": "Single",
+                "label": "싱글",
                 "price_delta": 0
               },
               {
-                "label": "Double",
+                "label": "더블",
                 "price_delta": 500
               }
             ]
@@ -888,47 +888,47 @@
       },
       {
         "id": "decaf-americano-022",
-        "name": "Decaf Americano",
-        "category": "Coffee",
+        "name": "디카페인 아메리카노",
+        "category": "커피",
         "price": 3800,
         "image_url": "/img/menu/decaf-americano-022.svg",
-        "desc": "Decaf espresso with a light roasted body.",
+        "desc": "은은하게 로스팅한 가벼운 바디의 디카페인 에스프레소예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Shot",
+            "type": "샷",
             "choices": [
               {
-                "label": "Single",
+                "label": "싱글",
                 "price_delta": 0
               },
               {
-                "label": "Double",
+                "label": "더블",
                 "price_delta": 500
               }
             ]
@@ -937,47 +937,47 @@
       },
       {
         "id": "einspanner-023",
-        "name": "Einspanner",
-        "category": "Coffee",
+        "name": "아인슈페너",
+        "category": "커피",
         "price": 5200,
         "image_url": "/img/menu/einspanner-023.svg",
-        "desc": "Iced black coffee topped with sweet cream.",
+        "desc": "차가운 블랙커피 위에 달콤한 크림을 올린 음료예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               },
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Shot",
+            "type": "샷",
             "choices": [
               {
-                "label": "Single",
+                "label": "싱글",
                 "price_delta": 0
               },
               {
-                "label": "Double",
+                "label": "더블",
                 "price_delta": 500
               }
             ]
@@ -986,64 +986,64 @@
       },
       {
         "id": "flat-white-024",
-        "name": "Flat White",
-        "category": "Coffee",
+        "name": "플랫화이트",
+        "category": "커피",
         "price": 4800,
         "image_url": "/img/menu/flat-white-024.svg",
-        "desc": "Rich espresso with fine steamed milk foam.",
+        "desc": "고운 우유 거품과 진한 에스프레소가 어우러진 커피예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Shot",
+            "type": "샷",
             "choices": [
               {
-                "label": "Single",
+                "label": "싱글",
                 "price_delta": 0
               },
               {
-                "label": "Double",
+                "label": "더블",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
@@ -1052,68 +1052,68 @@
       },
       {
         "id": "spanish-latte-025",
-        "name": "Spanish Latte",
-        "category": "Latte",
+        "name": "스페니쉬 라떼",
+        "category": "라떼",
         "price": 5400,
         "image_url": "/img/menu/spanish-latte-025.svg",
-        "desc": "A creamy latte sweetened with condensed milk.",
+        "desc": "연유로 달콤하게 맛을 낸 크리미한 라떼예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               },
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1122,68 +1122,68 @@
       },
       {
         "id": "cinnamon-latte-026",
-        "name": "Cinnamon Latte",
-        "category": "Latte",
+        "name": "시나몬 라떼",
+        "category": "라떼",
         "price": 5300,
         "image_url": "/img/menu/cinnamon-latte-026.svg",
-        "desc": "Warm cinnamon spice blended into a smooth latte.",
+        "desc": "따뜻한 시나몬 향을 부드러운 라떼에 더했어요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1192,68 +1192,68 @@
       },
       {
         "id": "black-sesame-latte-027",
-        "name": "Black Sesame Latte",
-        "category": "Latte",
+        "name": "흑임자 라떼",
+        "category": "라떼",
         "price": 5600,
         "image_url": "/img/menu/black-sesame-latte-027.svg",
-        "desc": "Nutty black sesame milk latte with a soft finish.",
+        "desc": "고소한 흑임자와 우유가 어우러진 부드러운 라떼예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               },
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1262,68 +1262,68 @@
       },
       {
         "id": "chai-latte-028",
-        "name": "Chai Latte",
-        "category": "Latte",
+        "name": "차이 라떼",
+        "category": "라떼",
         "price": 5200,
         "image_url": "/img/menu/chai-latte-028.svg",
-        "desc": "Spiced tea latte with cinnamon and cardamom notes.",
+        "desc": "시나몬과 카다멈 향이 어우러진 향신료 티 라떼예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Milk",
+            "type": "우유",
             "choices": [
               {
-                "label": "Whole Milk",
+                "label": "일반 우유",
                 "price_delta": 0
               },
               {
-                "label": "Low-Fat Milk",
+                "label": "저지방 우유",
                 "price_delta": 0
               },
               {
-                "label": "Oat Milk",
+                "label": "오트 우유",
                 "price_delta": 600
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1332,51 +1332,51 @@
       },
       {
         "id": "chamomile-tea-029",
-        "name": "Chamomile Tea",
-        "category": "Tea",
+        "name": "캐모마일 티",
+        "category": "티",
         "price": 4200,
         "image_url": "/img/menu/chamomile-tea-029.svg",
-        "desc": "Caffeine-free chamomile tea with a gentle floral aroma.",
+        "desc": "은은한 꽃향이 도는 카페인 없는 캐모마일 차예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1385,51 +1385,51 @@
       },
       {
         "id": "peach-iced-tea-030",
-        "name": "Peach Iced Tea",
-        "category": "Tea",
+        "name": "복숭아 아이스티",
+        "category": "티",
         "price": 4700,
         "image_url": "/img/menu/peach-iced-tea-030.svg",
-        "desc": "Sweet peach tea served cold with fruit notes.",
+        "desc": "달콤한 복숭아 향이 가득한 시원한 차예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               },
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1438,51 +1438,51 @@
       },
       {
         "id": "green-tea-031",
-        "name": "Green Tea",
-        "category": "Tea",
+        "name": "녹차",
+        "category": "티",
         "price": 4000,
         "image_url": "/img/menu/green-tea-031.svg",
-        "desc": "Clean green tea with a mild grassy finish.",
+        "desc": "은은한 풀향이 도는 깔끔한 녹차예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1491,51 +1491,51 @@
       },
       {
         "id": "yuzu-tea-032",
-        "name": "Yuzu Tea",
-        "category": "Tea",
+        "name": "유자차",
+        "category": "티",
         "price": 4700,
         "image_url": "/img/menu/yuzu-tea-032.svg",
-        "desc": "Citrus yuzu tea with a bright honey finish.",
+        "desc": "상큼한 유자에 은은한 꿀향이 도는 차예요.",
         "options": [
           {
-            "type": "Temperature",
+            "type": "온도",
             "choices": [
               {
-                "label": "Hot",
+                "label": "뜨겁게",
                 "price_delta": 0
               },
               {
-                "label": "Iced",
+                "label": "차갑게",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1544,55 +1544,55 @@
       },
       {
         "id": "strawberry-ade-033",
-        "name": "Strawberry Ade",
-        "category": "Ade",
+        "name": "딸기 에이드",
+        "category": "에이드",
         "price": 5200,
         "image_url": "/img/menu/strawberry-ade-033.svg",
-        "desc": "Sparkling strawberry ade with a fresh berry taste.",
+        "desc": "상큼한 딸기 맛이 살아있는 탄산 에이드예요.",
         "options": [
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Ice",
+            "type": "얼음",
             "choices": [
               {
-                "label": "Regular Ice",
+                "label": "얼음 기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Ice",
+                "label": "얼음 적게",
                 "price_delta": 0
               },
               {
-                "label": "No Ice",
+                "label": "얼음 없이",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1601,55 +1601,55 @@
       },
       {
         "id": "blue-lemon-ade-034",
-        "name": "Blue Lemon Ade",
-        "category": "Ade",
+        "name": "블루 레몬 에이드",
+        "category": "에이드",
         "price": 5200,
         "image_url": "/img/menu/blue-lemon-ade-034.svg",
-        "desc": "Bright blue lemon ade with crisp sparkling soda.",
+        "desc": "산뜻한 블루 레몬에 청량한 탄산을 더한 에이드예요.",
         "options": [
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Ice",
+            "type": "얼음",
             "choices": [
               {
-                "label": "Regular Ice",
+                "label": "얼음 기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Ice",
+                "label": "얼음 적게",
                 "price_delta": 0
               },
               {
-                "label": "No Ice",
+                "label": "얼음 없이",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1658,38 +1658,38 @@
       },
       {
         "id": "mango-smoothie-035",
-        "name": "Mango Smoothie",
-        "category": "Beverage",
+        "name": "망고 스무디",
+        "category": "음료",
         "price": 5800,
         "image_url": "/img/menu/mango-smoothie-035.svg",
-        "desc": "Thick mango smoothie blended with sweet fruit pulp.",
+        "desc": "달콤한 망고 과육을 갈아 진하게 만든 스무디예요.",
         "options": [
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1698,38 +1698,38 @@
       },
       {
         "id": "chocolate-frappe-036",
-        "name": "Chocolate Frappe",
-        "category": "Beverage",
+        "name": "초콜릿 프라페",
+        "category": "음료",
         "price": 5900,
         "image_url": "/img/menu/chocolate-frappe-036.svg",
-        "desc": "Blended chocolate frappe with a rich cocoa taste.",
+        "desc": "진한 카카오 맛이 가득한 갈아 만든 초콜릿 음료예요.",
         "options": [
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1738,38 +1738,38 @@
       },
       {
         "id": "plain-yogurt-smoothie-037",
-        "name": "Plain Yogurt Smoothie",
-        "category": "Beverage",
+        "name": "플레인 요거트 스무디",
+        "category": "음료",
         "price": 5600,
         "image_url": "/img/menu/plain-yogurt-smoothie-037.svg",
-        "desc": "Tart yogurt smoothie with a clean creamy finish.",
+        "desc": "새콤하면서 깔끔한 크리미함이 좋은 요거트 스무디예요.",
         "options": [
           {
-            "type": "Size",
+            "type": "사이즈",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Large",
+                "label": "크게",
                 "price_delta": 500
               }
             ]
           },
           {
-            "type": "Sweetness",
+            "type": "당도",
             "choices": [
               {
-                "label": "Regular",
+                "label": "기본",
                 "price_delta": 0
               },
               {
-                "label": "Less Sweet",
+                "label": "덜 달게",
                 "price_delta": 0
               },
               {
-                "label": "Extra Sweet",
+                "label": "더 달게",
                 "price_delta": 300
               }
             ]
@@ -1778,43 +1778,43 @@
       },
       {
         "id": "bottled-water-038",
-        "name": "Bottled Water",
-        "category": "Beverage",
+        "name": "생수",
+        "category": "음료",
         "price": 1500,
         "image_url": "/img/menu/bottled-water-038.svg",
-        "desc": "Still bottled water for a simple refreshment.",
+        "desc": "간단하게 목을 축이기 좋은 무탄산 생수예요.",
         "options": []
       },
       {
         "id": "croissant-039",
-        "name": "Croissant",
-        "category": "Dessert",
+        "name": "크루아상",
+        "category": "디저트",
         "price": 3600,
         "image_url": "/img/menu/croissant-039.svg",
-        "desc": "Buttery layered croissant baked until crisp.",
+        "desc": "버터향 가득한 결을 바삭하게 구운 크루아상이에요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
@@ -1823,34 +1823,34 @@
       },
       {
         "id": "garlic-bagel-040",
-        "name": "Garlic Bagel",
-        "category": "Dessert",
+        "name": "갈릭 베이글",
+        "category": "디저트",
         "price": 4300,
         "image_url": "/img/menu/garlic-bagel-040.svg",
-        "desc": "Savory garlic bagel with a chewy baked crust.",
+        "desc": "쫄깃하게 구운 고소한 갈릭 베이글이에요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
@@ -1859,34 +1859,34 @@
       },
       {
         "id": "salt-bread-041",
-        "name": "Salt Bread",
-        "category": "Dessert",
+        "name": "소금빵",
+        "category": "디저트",
         "price": 3300,
         "image_url": "/img/menu/salt-bread-041.svg",
-        "desc": "Soft salt bread with a buttery center.",
+        "desc": "속에 버터가 들어간 부드러운 소금빵이에요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
@@ -1895,34 +1895,34 @@
       },
       {
         "id": "egg-tart-042",
-        "name": "Egg Tart",
-        "category": "Dessert",
+        "name": "에그타르트",
+        "category": "디저트",
         "price": 3800,
         "image_url": "/img/menu/egg-tart-042.svg",
-        "desc": "Flaky pastry filled with smooth baked custard.",
+        "desc": "바삭한 페이스트리에 부드러운 커스터드를 채운 타르트예요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
@@ -1931,34 +1931,34 @@
       },
       {
         "id": "madeleine-043",
-        "name": "Madeleine",
-        "category": "Dessert",
+        "name": "마들렌",
+        "category": "디저트",
         "price": 2800,
         "image_url": "/img/menu/madeleine-043.svg",
-        "desc": "Small shell-shaped butter cake with a tender crumb.",
+        "desc": "조개 모양의 부드러운 버터 케이크예요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
@@ -1967,34 +1967,34 @@
       },
       {
         "id": "cookie-set-044",
-        "name": "Cookie Set",
-        "category": "Dessert",
+        "name": "쿠키 세트",
+        "category": "디저트",
         "price": 4200,
         "image_url": "/img/menu/cookie-set-044.svg",
-        "desc": "A set of crisp cookies in classic cafe flavors.",
+        "desc": "클래식한 카페 맛의 바삭한 쿠키 세트예요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
@@ -2003,34 +2003,34 @@
       },
       {
         "id": "apple-pie-045",
-        "name": "Apple Pie",
-        "category": "Dessert",
+        "name": "애플파이",
+        "category": "디저트",
         "price": 4800,
         "image_url": "/img/menu/apple-pie-045.svg",
-        "desc": "Warm apple pie with a flaky golden crust.",
+        "desc": "바삭한 황금빛 크러스트의 따뜻한 애플파이예요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
@@ -2039,34 +2039,34 @@
       },
       {
         "id": "strawberry-shortcake-046",
-        "name": "Strawberry Shortcake",
-        "category": "Dessert",
+        "name": "딸기 쇼트케이크",
+        "category": "디저트",
         "price": 6200,
         "image_url": "/img/menu/strawberry-shortcake-046.svg",
-        "desc": "Soft sponge cake layered with cream and strawberries.",
+        "desc": "부드러운 시트에 생크림과 딸기를 층층이 올린 케이크예요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
@@ -2075,34 +2075,34 @@
       },
       {
         "id": "affogato-047",
-        "name": "Affogato",
-        "category": "Dessert",
+        "name": "아포가토",
+        "category": "디저트",
         "price": 5500,
         "image_url": "/img/menu/affogato-047.svg",
-        "desc": "Vanilla ice cream topped with hot espresso.",
+        "desc": "바닐라 아이스크림 위에 뜨거운 에스프레소를 부은 디저트예요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
@@ -2111,34 +2111,34 @@
       },
       {
         "id": "ice-cream-cup-048",
-        "name": "Ice Cream Cup",
-        "category": "Dessert",
+        "name": "아이스크림 컵",
+        "category": "디저트",
         "price": 4500,
         "image_url": "/img/menu/ice-cream-cup-048.svg",
-        "desc": "Creamy ice cream cup with mixed flavors.",
+        "desc": "여러 맛을 담은 크리미한 아이스크림 컵이에요.",
         "options": [
           {
-            "type": "Packaging",
+            "type": "포장",
             "choices": [
               {
-                "label": "Eat Now",
+                "label": "매장에서",
                 "price_delta": 0
               },
               {
-                "label": "Take Out",
+                "label": "포장",
                 "price_delta": 0
               }
             ]
           },
           {
-            "type": "Serve",
+            "type": "제공 방식",
             "choices": [
               {
-                "label": "Room Temp",
+                "label": "실온",
                 "price_delta": 0
               },
               {
-                "label": "Warmed",
+                "label": "데워서",
                 "price_delta": 0
               }
             ]
