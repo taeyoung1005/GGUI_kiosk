@@ -100,6 +100,38 @@ describe("RealtimeAgent event handling", () => {
     ]);
   });
 
+  it("queues a diagnostic text turn until an active response has finished cancelling", async () => {
+    const agent = new RealtimeAgent(sampleMenu, { onToolCall: vi.fn() });
+    const send = vi.fn();
+    const internals = privateAgent(agent);
+    internals.dc = { send, readyState: "open" } as unknown as PrivateRealtimeAgent["dc"];
+
+    await internals.handleEvent(JSON.stringify({ type: "response.created" }));
+    const accepted = agent.submitTextTurn("따뜻한 카페라떼 주세요");
+
+    expect(accepted).toBe(true);
+    expect(send.mock.calls.map(([raw]) => JSON.parse(raw))).toEqual([
+      { type: "response.cancel" },
+      { type: "output_audio_buffer.clear" },
+    ]);
+
+    await internals.handleEvent(JSON.stringify({ type: "response.done" }));
+
+    expect(send.mock.calls.map(([raw]) => JSON.parse(raw))).toEqual([
+      { type: "response.cancel" },
+      { type: "output_audio_buffer.clear" },
+      {
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "따뜻한 카페라떼 주세요" }],
+        },
+      },
+      { type: "response.create" },
+    ]);
+  });
+
   it("attaches the assistant audio element to the DOM and removes it on close", async () => {
     vi.mocked(createRealtimeSession).mockResolvedValue({
       client_secret: "ek_test",

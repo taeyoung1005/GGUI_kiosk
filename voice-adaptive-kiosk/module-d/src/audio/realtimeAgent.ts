@@ -24,6 +24,7 @@ export class RealtimeAgent {
   private assistantBuf = "";
   private greeted = false;
   private responseActive = false;
+  private pendingTextTurn: string | null = null;
 
   constructor(
     private readonly menu: Menu,
@@ -120,16 +121,28 @@ export class RealtimeAgent {
   submitTextTurn(text: string): boolean {
     const trimmed = text.trim();
     if (!trimmed || !this.dc || this.dc.readyState !== "open") return false;
+    if (this.responseActive || this.assistantBuf) {
+      this.pendingTextTurn = trimmed;
+      this.send({ type: "response.cancel" });
+      this.send({ type: "output_audio_buffer.clear" });
+      this.assistantBuf = "";
+      this.cbs.onAssistantText?.("", true);
+      return true;
+    }
+    this.sendTextTurn(trimmed);
+    return true;
+  }
+
+  private sendTextTurn(text: string): void {
     this.send({
       type: "conversation.item.create",
       item: {
         type: "message",
         role: "user",
-        content: [{ type: "input_text", text: trimmed }],
+        content: [{ type: "input_text", text }],
       },
     });
     this.send({ type: "response.create" });
-    return true;
   }
 
   private configureSession(): void {
@@ -242,6 +255,11 @@ export class RealtimeAgent {
         break;
       case "response.done":
         this.responseActive = false;
+        if (this.pendingTextTurn) {
+          const pending = this.pendingTextTurn;
+          this.pendingTextTurn = null;
+          this.sendTextTurn(pending);
+        }
         break;
       default:
         break;
