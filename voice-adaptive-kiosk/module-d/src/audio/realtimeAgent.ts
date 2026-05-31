@@ -22,6 +22,8 @@ export class RealtimeAgent {
   private audioEl: HTMLAudioElement | null = null;
   private closed = false;
   private assistantBuf = "";
+  private greeted = false;
+  private responseActive = false;
 
   constructor(
     private readonly menu: Menu,
@@ -114,6 +116,22 @@ export class RealtimeAgent {
     this.pc = null;
   }
 
+  /** Dev/test helper: send a user text turn over the live Realtime data channel. */
+  submitTextTurn(text: string): boolean {
+    const trimmed = text.trim();
+    if (!trimmed || !this.dc || this.dc.readyState !== "open") return false;
+    this.send({
+      type: "conversation.item.create",
+      item: {
+        type: "message",
+        role: "user",
+        content: [{ type: "input_text", text: trimmed }],
+      },
+    });
+    this.send({ type: "response.create" });
+    return true;
+  }
+
   private configureSession(): void {
     this.send({
       type: "session.update",
@@ -125,7 +143,6 @@ export class RealtimeAgent {
         tool_choice: "auto",
       },
     });
-    this.send({ type: "response.create" });
   }
 
   private teardown(): void {
@@ -176,10 +193,28 @@ export class RealtimeAgent {
     }
 
     switch (event.type) {
+      case "session.updated":
+        if (!this.greeted) {
+          this.greeted = true;
+          this.send({ type: "response.create" });
+        }
+        break;
+      case "response.created":
+        this.responseActive = true;
+        break;
+      case "input_audio_buffer.speech_started":
+        if (this.responseActive || this.assistantBuf) {
+          this.send({ type: "response.cancel" });
+          this.send({ type: "output_audio_buffer.clear" });
+        }
+        this.assistantBuf = "";
+        this.cbs.onAssistantText?.("", true);
+        break;
       case "conversation.item.input_audio_transcription.completed":
         this.cbs.onUserTranscript?.(String(event.transcript ?? "").trim());
         break;
       case "response.output_audio_transcript.delta":
+        this.responseActive = true;
         this.assistantBuf += String(event.delta ?? "");
         this.cbs.onAssistantText?.(this.assistantBuf, false);
         break;
@@ -200,9 +235,13 @@ export class RealtimeAgent {
         }
         break;
       case "error":
+        if (isBenignRealtimeError(event?.error?.message)) break;
         this.cbs.onError?.(
           event?.error?.message ? `음성 오류: ${event.error.message}` : "음성 처리 중 오류가 발생했어요.",
         );
+        break;
+      case "response.done":
+        this.responseActive = false;
         break;
       default:
         break;
@@ -248,4 +287,8 @@ export function isRealtimeAgentSupported(): boolean {
     !!navigator.mediaDevices &&
     typeof navigator.mediaDevices.getUserMedia === "function"
   );
+}
+
+function isBenignRealtimeError(message: unknown): boolean {
+  return typeof message === "string" && message.includes("Cancellation failed: no active response found");
 }

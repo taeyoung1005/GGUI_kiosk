@@ -146,17 +146,18 @@ export class Orchestrator {
     if (!this.menu) this.menu = await getMenu();
     const result: AnalyzeResult = { transcript: "", language: "ko", duration_ms: 0 };
     const candidates = this.menu.items.slice(0, 8);
+    const shouldStartAgent = opts.startAgent !== false && !USE_MOCK;
     this.set({
       analyze: result,
       candidates,
       phase: "adaptive",
       step: "recommend",
-      message: "무엇을 도와드릴까요?",
+      message: shouldStartAgent ? "연결 중이에요..." : "무엇을 도와드릴까요?",
       userTranscript: "",
       assistantText: "",
       conversational: true,
     });
-    if (opts.startAgent !== false && !USE_MOCK) {
+    if (shouldStartAgent) {
       this.agent = new RealtimeAgent(this.menu, {
         onToolCall: (name, args) => this.runAgentTool(name, args),
         onUserTranscript: (transcript) => this.set({ userTranscript: transcript }),
@@ -174,6 +175,11 @@ export class Orchestrator {
     this.agent = null;
     this.conversational = false;
     this.reset(true);
+  }
+
+  /** Dev/test hook exposed through window.__giosk in App.tsx. */
+  submitAgentText(text: string): boolean {
+    return this.agent?.submitTextTurn(text) ?? false;
   }
 
   /**

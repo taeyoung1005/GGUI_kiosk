@@ -22,6 +22,24 @@ export default defineConfig(({ mode }) => {
     server: {
       port,
       host: true,
+      allowedHosts: true,
+      proxy: {
+        "/api/a": {
+          target: "http://127.0.0.1:8000",
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api\/a/, ""),
+        },
+        "/api/b": {
+          target: "http://127.0.0.1:8001",
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api\/b/, ""),
+        },
+        "/api/c": {
+          target: "http://127.0.0.1:8002",
+          changeOrigin: true,
+          rewrite: (p) => p.replace(/^\/api\/c/, ""),
+        },
+      },
       // 상위 contracts/ 디렉토리 import 허용 (Vite 5 보안 기본값 우회)
       fs: { allow: [repoRoot] },
     },

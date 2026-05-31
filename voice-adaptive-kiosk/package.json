@@ -24,7 +24,8 @@
     "test:c": "npm --prefix module-c test",
     "verify": "npm run test:c && npm --prefix module-d run typecheck && npm --prefix module-d run build",
     "_comment_run": "─── A 포함 전체 (백그라운드 + 헬스체크) ─────────────────────",
-    "run:all": "bash run.sh"
+    "run:all": "bash run.sh",
+    "run:ngrok": "GGUI_MODE=local VITE_ANALYZE_URL=/api/a VITE_REALTIME_URL=/api/a VITE_MENU_URL=/api/b VITE_GGUI_URL=/api/c bash run.sh"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"

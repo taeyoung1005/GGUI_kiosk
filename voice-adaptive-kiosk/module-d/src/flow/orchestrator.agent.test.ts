@@ -2,9 +2,29 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { sampleMenu } from "@contracts/mocks";
 import { Orchestrator } from "./orchestrator";
 
+const realtimeAgentMock = vi.hoisted(() => ({
+  callbacks: null as null | {
+    onOpen?: () => void;
+  },
+}));
+
 vi.mock("../audio/tts", () => ({
   cancelSpeech: vi.fn(),
   speak: vi.fn(),
+}));
+
+vi.mock("../audio/realtimeAgent", () => ({
+  RealtimeAgent: class MockRealtimeAgent {
+    constructor(_menu: unknown, callbacks: { onOpen?: () => void }) {
+      realtimeAgentMock.callbacks = callbacks;
+    }
+    async start() {
+      return undefined;
+    }
+    close() {
+      return undefined;
+    }
+  },
 }));
 
 vi.mock("../audio/realtime", () => ({
@@ -41,6 +61,7 @@ describe("Orchestrator agent tools", () => {
   let flow: Orchestrator;
 
   beforeEach(() => {
+    realtimeAgentMock.callbacks = null;
     flow = new Orchestrator();
   });
 
@@ -75,5 +96,16 @@ describe("Orchestrator agent tools", () => {
 
     expect(orderResult).toMatchObject({ ok: true, order_id: "ord-test", total: 4500 });
     expect(flow.getState().phase).toBe("done");
+  });
+
+  it("shows connecting state until the Realtime agent opens", async () => {
+    await flow.startConversation();
+
+    expect(flow.getState().message).toBe("연결 중이에요...");
+    expect(realtimeAgentMock.callbacks).toBeTruthy();
+
+    realtimeAgentMock.callbacks?.onOpen?.();
+
+    expect(flow.getState().message).toBe("말씀해 주세요. 듣고 있어요.");
   });
 });
