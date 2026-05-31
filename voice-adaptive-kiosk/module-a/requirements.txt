@@ -1,7 +1,8 @@
 fastapi>=0.115.0
 librosa>=0.10.2.post1
 numpy>=1.26.4
-openai>=1.93.0
+# GA Realtime ephemeral 토큰(client.realtime.client_secrets)은 openai-python 2.x 필요.
+openai>=2.2.0
 python-dotenv>=1.0.1
 python-multipart>=0.0.9
 soundfile>=0.12.1
