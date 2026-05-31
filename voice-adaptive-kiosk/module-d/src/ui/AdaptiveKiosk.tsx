@@ -157,9 +157,13 @@ export default function AdaptiveKiosk({ flow, state }: AdaptiveKioskProps) {
     );
   }
 
-  // ── adaptive 단계: embed_url 우선, 없으면 내장 렌더러 ──────
+  // ── adaptive 단계: 내장 인터랙티브 렌더러(터치+음성) 기본 ──────
+  // GGUI iframe 은 표시 전용이라(안의 버튼이 흐름을 진행시키지 못함) 기본 off.
+  // 시각 확인용으로 보려면 VITE_GGUI_EMBED=true.
   if (state.phase === "adaptive") {
-    const useEmbed = Boolean((embedUrl || gguiHtml) && !embedTimedOut);
+    const useEmbed =
+      import.meta.env.VITE_GGUI_EMBED === "true" &&
+      Boolean((embedUrl || gguiHtml) && !embedTimedOut);
     return (
       <div className="adaptive">
         {useEmbed ? (
