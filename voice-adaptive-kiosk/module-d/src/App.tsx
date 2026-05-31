@@ -33,6 +33,11 @@ export default function App() {
 
   useEffect(() => flow.subscribe(setState), [flow]);
 
+  // dev 전용 e2e/스크린샷 테스트 훅 — orchestrator 를 노출(프로덕션 빌드에서는 제거됨).
+  useEffect(() => {
+    if (import.meta.env.DEV) (window as unknown as { __giosk?: Orchestrator }).__giosk = flow;
+  }, [flow]);
+
   // phase === idle 이면 kiosk, 그 외(음성 주문 진행 중)면 voice
   const mode: AppMode = state.phase === "idle" ? "kiosk" : "voice";
 

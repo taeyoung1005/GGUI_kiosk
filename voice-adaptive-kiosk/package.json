@@ -20,6 +20,7 @@
     "health": "node scripts/health.mjs",
     "probe:ggui": "node scripts/probe-ggui-generation.mjs",
     "prewarm:ggui": "node scripts/prewarm-ggui.mjs",
+    "screenshot": "node scripts/screenshot-flow.mjs",
     "test:c": "npm --prefix module-c test",
     "verify": "npm run test:c && npm --prefix module-d run typecheck && npm --prefix module-d run build",
     "_comment_run": "─── A 포함 전체 (백그라운드 + 헬스체크) ─────────────────────",
