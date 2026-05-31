@@ -112,8 +112,11 @@ if [[ "${GGUI_MODE}" == "ggui" ]]; then
   if lsof -ti tcp:"${PORT_GGUI}" >/dev/null 2>&1; then
     log "GGUI MCP 서버 재사용 (:${PORT_GGUI} 이미 가동 중)"
   elif [[ "${KEY_PRESENT}" == "1" ]] && command -v npx >/dev/null 2>&1; then
-    log "GGUI MCP 서버 기동 (npx @ggui-ai/cli serve :${PORT_GGUI})"
-    ( exec npx -y @ggui-ai/cli serve --mcp-only --dev-allow-all --port "${PORT_GGUI}" \
+    # 버전 핀 필수: latest(0.1.0-rc.1)는 codeReady=false 라 module-c 와 비호환.
+    # 0.2.0-alpha.4 가 codeReady 호환 버전. GGUI_CLI_VERSION 로 override 가능.
+    GGUI_CLI="@ggui-ai/cli@${GGUI_CLI_VERSION:-0.2.0-alpha.4}"
+    log "GGUI MCP 서버 기동 (npx ${GGUI_CLI} serve :${PORT_GGUI})"
+    ( exec npx -y "${GGUI_CLI}" serve --mcp-only --dev-allow-all --port "${PORT_GGUI}" \
         --public-base-url "http://127.0.0.1:${PORT_GGUI}" --no-open ) \
       >"${LOG_DIR}/GGUI.log" 2>&1 &
     PIDS+=("$!")
