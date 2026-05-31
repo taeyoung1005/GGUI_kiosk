@@ -736,3 +736,32 @@ curl -s -X POST http://localhost:8000/analyze   # mock에선 오디오 없이도
 - recorder.ts: App.tsx(L16 isRecordingSupported)가 여전히 참조 중 → Task 6 범위라 삭제 보류(orchestrator 의존은 제거됨, "미사용시 정리" 조건 미충족).
 - 검증: `cd module-d && npx tsc --noEmit` → 목표 레이어(api/flow/audio) 0 에러(PASS). 잔존 에러 8건은 전부 App.tsx(KOREAN_PROXY_VOICES·setMockVariant·setProxyVoice 등)·AdaptiveKiosk.tsx(state.analyze.behavioral/age)로 Task 6에서 해소 예정(계획 명시). 제거 심볼 grep 0건.
 - 커밋: 8356ee9 [refactor] Module D 로직 레이어 proxy/voice/age 제거 + Realtime STT 연동
+
+## 공개 준비(Giosk publish-prep) — Phase A·B·C 완료 (라이브 검증 포함)
+계획: docs/superpowers/plans/2026-05-31-giosk-publish-prep.md. BYOK 키는 `module-c/.env.local`(sk-proj…)에 기존 존재 — 사용자가 잠든 사이 자율 진행("전부 진행해줘"). **push 는 미실행(외부 공개라 사용자 확인 대기).**
+
+### Phase A1 — 기동·헬스 정합 (커밋 730e75a)
+- run.sh 전면 재작성: BYOK 키 자동탐지(env > 루트 .env(.local) > module-c .env(.local)) → 키 있으면 `GGUI_MODE=ggui`(라이브 메인) + GGUI MCP 서버(6781) 자동 기동/재사용, 없으면 LOCAL. `MOCK_MODE`(app.py 미사용) 제거. stop 모드에 6781 포함. 키탐지 로직 단위검증 PASS(키없음/placeholder→local, 실키→ggui).
+- health.mjs A 라벨 realtime/STT 정정. run_local.sh의 제거된 AGE_MODEL_PROVIDER 삭제. mocks.ts 주석 MOCK_MODE 제거. stale 스크립트 module-a/scripts/test_elevenlabs_age_demo.sh 삭제. npm run verify PASS.
+
+### Phase A2 — 라이브 결선 검증 (커밋 a144c40) ★실제 이슈 2건 발견·수정★
+- 검증 환경: 떠있던 스택이 STALE(8000 module-a가 리워크 이전 코드, /realtime/session 404, /demo/* 잔존)이라 현재 코드로 재기동 후 검증. 프론트는 `module-d/.env.local`이 VITE_USE_MOCK=true라 mock에 묶여 있었음 → false + VITE_REALTIME_URL 추가로 라이브 전환.
+- **[버그1·수정] /realtime/session 502** → OpenAI 400 `Missing required parameter: 'session.audio.input.transcription.model'`. GA Realtime은 input transcription에 **model 필수**. app.py에 `OPENAI_REALTIME_TRANSCRIBE_MODEL=gpt-4o-transcribe`(env override) 추가 → **재검증 200, ephemeral client_secret(ek_…) 발급 성공.** (정적감사에서 이미 리스크로 지목했던 항목)
+- **[이슈2·대응] GGUI 라이브 = local-fallback** → 사유 "GGUI render timeout after 8000ms". **콜드 생성이 30~40초**(fulfillment 31.6s, confirm 39.6s 실측)라 8s 타임아웃이 항상 폴백. 단 **GGUI 캐시 키는 transcript가 아니라 step/contract 구조 기반** — 다른 발화도 같은 step이면 캐시 히트(0.0s). 폴백돼도 GGUI 서버가 백그라운드로 생성·캐시 적재함을 데이터로 확인. → module-c GGUI_TIMEOUT_MS 기본 12s로 조정 + `scripts/prewarm-ggui.mjs`(npm run prewarm:ggui) 신설(6개 step 폴링 워밍). **프리워밍 6/6 적재 후 재검증: X-GGUI-Path=ggui, 0.0s.**
+- **[검증 통과] ground-intent 한국어 매칭(LLM, gpt-4.1-mini)**: 따뜻한 라떼→select_item(caffe-latte-003), 안 단 걸로 아이스로→{온도:차갑게}, 포장→Take Out, 적립 안 할게요→none, 카카오페이→Kakao Pay, 네→yes 전부 정확. **주문 total 4500=4500 정합.** AdaptiveKiosk가 GGUI `_ggui.html`을 iframe srcDoc로 렌더 확인(GGUI 화면은 음성진행, LOCAL 폴백은 터치도 가능).
+- **남은 1건(사용자 몫): 브라우저 마이크 발화→WebRTC→2초 VAD→transcript** 의 실제 음성 부분. 백엔드(세션 발급)·이후 흐름은 전부 라이브 검증됨. 마이크는 사람만 가능.
+- 최종 골든 상태: 4포트 health 200, realtime_ready=True, /realtime/session 200, GGUI ggui 0.0s, 주문 정합. 스택은 켜둔 채(프리워밍 유지) 사용자 브라우저 테스트 대기.
+
+### Phase B — 패키지화 + BYOK .env (커밋 17ef3eb)
+- `npm run setup` = install:all + module-a/setup-venv.sh(venv 멱등 부트스트랩, 검증 실행 OK). `npm run prewarm:ggui` 추가.
+- .env.example 전면 정리: 나이/ElevenLabs/proxy/MOCK_MODE 제거, OPENAI_API_KEY 한 줄이 핵심인 BYOK 형태(키 없으면 LOCAL 폴백 안내). requirements.txt openai>=2.2.0(GA Realtime client_secrets 필요, 설치본 2.38.0). .gitignore `.env`/`.env.*` 보호 확인(git check-ignore OK).
+
+### Phase C — Giosk 한국어 README (커밋 4841675)
+- 루트 README 전면 교체: Giosk 통일, Q1~Q4(문제·타깃·작동방식·차별점) + 시작하기(clone→.env→setup→run:all→prewarm:ggui) + 아키텍처 4모듈 표/흐름도(GGUI 라이브 메인·LOCAL 폴백) + 기술스택. 참조 경로 전부 실재 확인.
+
+### DoD 현황
+- [x] setup/run:all 4포트 health 200 (구성요소 검증; 풀 클린클론은 미실행)
+- [x] 라이브 Realtime e2e 백엔드(세션 200) — 마이크 음성부분만 사용자 몫
+- [x] 라이브 GGUI 생성(ggui path, codeReady, 프리워밍 즉시) / [x] 한국어 ground-intent·주문 total 정합
+- [x] README BYOK 설치·실행 가능 / [x] .env git 미추적 / [x] Giosk 통일
+- 검증: module-a 8 tests, module-c 25 tests, module-d typecheck/build 전부 PASS.
