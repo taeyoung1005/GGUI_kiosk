@@ -666,3 +666,39 @@ curl -s -X POST http://localhost:8000/analyze   # mock에선 오디오 없이도
   - live `/ground-intent`: `유자차 주문해줘` -> `yuzu-tea-032`, `오트밀크로 덜 달게` -> `Milk=Oat Milk`, `Sweetness=Less Sweet`, `카드로 결제` -> `Credit Card`.
   - live 데모 URL에서 유자차/소금빵/딸기 케이크/라떼 recommend 케이스 모두 `X-GGUI-Path=ggui`, grounding input 메뉴 48개, GGUI input 후보 1~5개.
   - live 전체 라떼 주문 플로우는 recommend/options/fulfillment/loyalty/payment/confirm 전부 통과하고 `Payment Complete!` 확인. 6번의 `/generate-ui` 모두 `X-GGUI-Path=ggui`, fallback 0회.
+
+---
+
+## 리워크 Task 1 — 공유 계약 정리 (검증 완료)
+
+- 상태: 커밋 `4eda0a8` "[refactor] 계약에서 age/behavioral/age_group/assist_level/proxy 필드 제거"로 이미 완료·커밋됨. 4파일(types.ts/schemas.py/mocks.json/mocks.ts) 동시 수정 반영. 작업트리에 contracts 추가 변경 없음(clean).
+- 결과 정합 확인:
+  - `AnalyzeResult = {transcript, language, duration_ms}` (AgeGroup/age/behavioral 제거).
+  - `GenerateUIRequest`: age_group/assist_level 제거, transcript/menu_context/order_state?/possible_actions?/step 유지.
+  - `GroundIntentRequest`: korean_text/english_proxy_text 제거.
+  - schemas.py `__all__`에서 AgeGroup/AssistLevel/AgeInfo/BehavioralInfo 제거.
+  - mocks.json: elder/youth 2변형 → 단일 `sampleAnalyzeResult` {"라떼 한 잔 주세요","ko",1850}. mocks.ts: 단일 export + 묶음에서 elder/youth 키 제거.
+  - sampleMenu 한국어화는 아직 미적용(Task 7 담당) — 의도대로 영어 유지.
+- 검증(게이트): `cd module-d && npx tsc --noEmit` → contracts 소스 파일(types.ts/mocks.ts/schemas.py) 내부 에러 0건. 남은 17건은 전부 하류 소비자 3파일(src/api/client.ts, src/flow/orchestrator.ts, src/ui/AdaptiveKiosk.tsx)의 제거된 필드 참조 — 계획상 Task 4~6에서 해소 예정(정상).
+
+---
+
+## 리워크 Task 2 — Module A 축소 (검증 완료)
+
+- 목적: 나이인식·behavioral·ElevenLabs·한→영proxy·demo 라우트 제거. Module A는 `/health` + `/analyze`(transcript-only) + OpenAI/Noop STT만 남김. Realtime 중계는 Task 3 담당(여기서는 추가 안 함).
+- app.py 변경:
+  - import 제거: `base64`, `urllib.parse.quote`, `inference.age`, `inference.behavioral`, `inference.elevenlabs_voice` 블록, `pydantic.BaseModel`(Pydantic 모델 전부 삭제로 미사용).
+  - env 제거: `AGE_MODEL_PROVIDER`, `AGE_DEVICE`. 전역 `_age_model`/`_elevenlabs` 제거(`_stt`만 유지).
+  - Pydantic 4모델(DemoVoiceRequest/AnnouncerVoiceRequest/KoreanSeniorProxyRequest/AnalyzeDemoVoiceRequest) 삭제. `get_age_model()`/`get_elevenlabs()` 팩토리 삭제.
+  - demo 라우트 6개 전부 삭제(voice-presets/random-age-voice/random-age-voice/audio/announcer-voice/audio/korean-senior-proxy/analyze/generate-and-analyze).
+  - `/health`: `age_model_provider`/`elevenlabs_ready` 키 제거 → `{ok, stt_model, stt_language}`.
+  - `/analyze`: age/behavioral 제거 → `{transcript, language, duration_ms}` 반환. librosa.load는 입력 디코딩 검증 목적으로 유지(반환값 미사용).
+- inference 3파일(age.py/behavioral.py/elevenlabs_voice.py) + 테스트 4개(test_age_public_model/test_behavioral/test_elevenlabs_voice/test_demo_routes) `git rm`.
+- stt.py: `FasterWhisperSTT` 클래스 삭제, `create_stt()`의 `local:`/faster-whisper 분기 제거 → OpenAI 경로(openai:/whisper-1 등 임의 모델은 OpenAIWhisperSTT로 폴백) + NoopSTT만. `device`/`compute_type` 인자는 app.py 호출 호환 위해 시그니처 유지(미사용).
+- test_stt_config.py: faster-whisper 테스트 케이스를 "임의 모델 → OpenAIWhisperSTT 폴백" 케이스로 교체.
+- requirements.txt: accelerate/datasets/evaluate/faster-whisper/huggingface-hub/loralib/pandas/scikit-learn/speechbrain/torch/torchaudio/transformers 제거. 유지: fastapi/librosa/numpy/openai/python-dotenv/python-multipart/soundfile/uvicorn[standard].
+- .env.example: AGE_MODEL_PROVIDER/AGE_DEVICE/ORDER_TRANSLATION_MODEL/ELEVENLABS_API_KEY/ELEVENLABS_MODEL_ID 제거. 유지: STT_MODEL/STT_LANGUAGE/STT_DEVICE/STT_COMPUTE_TYPE/API_KEY/OPENAI_API_KEY.
+- 검증(게이트, PASS):
+  - `cd module-a && .venv/bin/python -m py_compile app.py inference/*.py` → COMPILE_EXIT=0.
+  - `PYTHONPATH=. .venv/bin/python -m unittest discover tests` → Ran 8 tests, OK (test_stt_config + test_env_loading).
+  - 잔존 참조 grep(FasterWhisperSTT/create_age_model/score_behavioral/elevenlabs_voice/inference.age 등) → 0건.

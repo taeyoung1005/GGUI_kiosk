@@ -40,10 +40,10 @@ class SttConfigTest(unittest.TestCase):
             self.assertIs(create_stt("openai:whisper-1", "cpu", "int8"), openai_stt.return_value)
             openai_stt.assert_called_once_with("whisper-1", language="ko")
 
-    def test_local_prefix_uses_faster_whisper_stt(self) -> None:
-        with mock.patch("inference.stt.FasterWhisperSTT") as local_stt:
-            self.assertIs(create_stt("local:small", "cpu", "int8"), local_stt.return_value)
-            local_stt.assert_called_once_with("small", "cpu", "int8")
+    def test_other_models_fall_back_to_openai_stt(self) -> None:
+        with mock.patch("inference.stt.OpenAIWhisperSTT") as openai_stt:
+            self.assertIs(create_stt("gpt-4o-transcribe", "cpu", "int8"), openai_stt.return_value)
+            openai_stt.assert_called_once_with("gpt-4o-transcribe", language="ko")
 
     def test_none_model_uses_noop_stt(self) -> None:
         self.assertIsInstance(create_stt("none", "cpu", "int8"), NoopSTT)
