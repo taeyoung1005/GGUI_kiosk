@@ -134,7 +134,9 @@ export class RealtimeVoiceSession {
   // ── 내부 ──────────────────────────────────────────────────
 
   private async exchangeSdp(clientSecret: string, model: string, offerSdp: string): Promise<string> {
-    const url = `${OPENAI_REALTIME_BASE}?model=${encodeURIComponent(model)}`;
+    // GA Realtime WebRTC 핸드셰이크는 /v1/realtime/calls 로 SDP 를 POST 한다.
+    // (구 베타의 /v1/realtime?model= 은 400 "Beta API no longer supported" 로 폐기됨)
+    const url = `${OPENAI_REALTIME_BASE}/calls?model=${encodeURIComponent(model)}`;
     const res = await fetch(url, {
       method: "POST",
       body: offerSdp,
