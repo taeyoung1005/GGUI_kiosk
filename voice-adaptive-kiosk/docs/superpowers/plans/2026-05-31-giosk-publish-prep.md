@@ -14,9 +14,23 @@
 
 ---
 
+## 리워크가 남긴 "라이브 미검증" 항목 (Phase A에서 반드시 확인)
+
+리워크 구현(별도 계획)은 **타입체크·빌드·유닛테스트·mock 흐름까지만 통과**한 상태다. 다음은 실제 키/브라우저/서버 없이는 검증할 수 없어 **미검증으로 남은 항목**이며, Phase A의 핵심 검증 대상이다:
+
+1. **OpenAI Realtime 라이브 e2e (최우선 리스크)** — `module-a/app.py`의 `/realtime/session`(ephemeral client_secret 발급)과 `module-d/src/audio/realtime.ts`의 WebRTC SDP 핸드셰이크·이벤트명(`conversation.item.input_audio_transcription.completed`)은 OpenAI 2026-05 문서 형식을 따라 작성했으나 **실제 브라우저↔OpenAI 라이브 연결은 한 번도 안 돌려봤다.** `OPENAI_API_KEY` 세팅 후 (a) 세션 토큰 발급 200, (b) WebRTC 연결 수립, (c) 한국어 발화→2초 침묵 자동종료(server VAD)→transcript 수신이 실제로 되는지 확인 필요. 모델명(`gpt-realtime`)·VAD가 transcription에서 실제 동작하는지도 미확정(문서상 일부 모델은 VAD 미지원).
+2. **GGUI 라이브 생성 결선** — GGUI 복구는 됐다고 했으나, 리워크된 `module-c`(transcript 기반·강도 고정·한국어 프롬프트)가 실제로 `codeReady=true` 컴포넌트를 만들어 D에 렌더되는지는 mock 밖에서 미검증.
+3. **계약 필드 실측 정합** — transcript→C(`/generate-ui`)→D 임베드, B 메뉴(한국어 옵션 라벨)→주문 total 계산이 라이브에서 어긋나지 않는지(특히 ground-intent 한국어 옵션 매칭이 실발화에서 동작하는지).
+4. **`run.sh`/`health.mjs` 새 구조 미반영** — 옛 `/demo/*`·`MOCK_MODE` 기준이라 기동/헬스가 깨질 수 있음(Task A1에서 처리).
+5. **recorder.ts 잔존** — App이 `isRecordingSupported`만 참조해 안 지웠음. Realtime 전환 후 불필요하면 정리(무해, 저우선).
+6. **E2E 테스트 부재** — 옛 Playwright 스펙(`korean-proxy-demo.spec.mjs`)은 리워크로 삭제됨. Realtime/2-phase 신규 흐름용 E2E는 없음(추후 작성, 이번 범위 밖).
+
+> 즉 **"코드는 컴파일·빌드·유닛 통과, 라이브 동작은 미검증"** 상태. Phase A가 이 1~4를 키 넣고 실제로 돌려 확인하는 단계다.
+
 ## Phase A: 통합 & 라이브 결선 검증
 
 리워크 후 4모듈이 실제로 함께 도는지 확인. (코드 수정보다 "띄우고 관찰하고 고치는" 작업)
+**위 "라이브 미검증 항목" 1~4가 이 Phase의 검증 대상.**
 
 ### Task A1: 새 구조에 맞춰 기동 스크립트·헬스 점검
 
@@ -158,6 +172,9 @@ git add README.md && git commit -m "[docs] Giosk 한국어 README 재작성 (Q1~
 ## 완료 기준 (Definition of Done)
 
 - [ ] 클린 상태에서 `npm run setup && npm run run:all` → 4포트 health 200
+- [ ] **라이브 Realtime e2e 검증**: 키 세팅 후 세션 토큰 발급 200 + WebRTC 연결 + 한국어 발화→2초 자동종료→transcript 수신 실제 동작 (미검증 항목 #1 해소)
+- [ ] **라이브 GGUI 생성 검증**: transcript→C `/generate-ui`→codeReady=true→D 렌더 실제 동작 (미검증 항목 #2 해소)
+- [ ] **계약 라이브 정합**: 한국어 옵션 라벨이 실발화 ground-intent 매칭 + 주문 total 정확 (미검증 항목 #3 해소)
 - [ ] 브라우저에서 음성 주문 골든 플로우 완주(키 있을 때 GGUI 라이브, 없을 때 LOCAL)
 - [ ] README만 보고 낯선 사람이 설치·키설정·실행 가능
 - [ ] `.env`/키가 git에 안 올라감
