@@ -60,7 +60,10 @@ const ENV = {
   GGUI_BEARER: process.env.GGUI_BEARER || "dev",
   GGUI_MODEL: process.env.GGUI_MODEL || "openai:gpt-5.5-2026-04-23",
   GGUI_FORCE_CREATE: process.env.GGUI_FORCE_CREATE || "",
-  GGUI_TIMEOUT_MS: Number(process.env.GGUI_TIMEOUT_MS || 8000),
+  // GGUI 콜드 생성은 LLM 호출이라 30~40초. 이 시간 초과 시 LOCAL 폴백(즉시).
+  // 폴백돼도 GGUI 서버는 백그라운드로 생성을 마쳐 캐시에 넣으므로 재방문 시 즉시 GGUI.
+  // 첫 방문부터 GGUI 로 보려면 `npm run prewarm:ggui` 로 미리 데운다.
+  GGUI_TIMEOUT_MS: Number(process.env.GGUI_TIMEOUT_MS || 12000),
   GROUND_INTENT_MODEL: process.env.GROUND_INTENT_MODEL || "gpt-4.1-mini",
 };
 

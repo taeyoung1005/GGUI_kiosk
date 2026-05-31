@@ -38,6 +38,11 @@ STT_DEVICE = os.getenv("STT_DEVICE", "cpu")
 STT_COMPUTE_TYPE = os.getenv("STT_COMPUTE_TYPE", "int8")
 OPENAI_REALTIME_MODEL = os.getenv("OPENAI_REALTIME_MODEL", "gpt-realtime")
 OPENAI_REALTIME_LANGUAGE = os.getenv("OPENAI_REALTIME_LANGUAGE", "ko")
+# GA Realtime 은 input audio transcription 에 model 을 필수로 요구한다.
+# (whisper-1 / gpt-4o-transcribe / gpt-4o-mini-transcribe)
+OPENAI_REALTIME_TRANSCRIBE_MODEL = os.getenv(
+    "OPENAI_REALTIME_TRANSCRIBE_MODEL", "gpt-4o-transcribe"
+)
 OPENAI_REALTIME_SILENCE_MS = int(os.getenv("OPENAI_REALTIME_SILENCE_MS", "2000"))
 
 app = FastAPI(title="Voice Adaptive Kiosk Analyze API")
@@ -107,6 +112,7 @@ def realtime_session(authorization: str | None = Header(default=None)):
         "audio": {
             "input": {
                 "transcription": {
+                    "model": OPENAI_REALTIME_TRANSCRIBE_MODEL,
                     "language": OPENAI_REALTIME_LANGUAGE,
                 },
                 "turn_detection": {
