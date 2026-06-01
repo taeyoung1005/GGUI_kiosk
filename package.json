@@ -1,0 +1,23 @@
+{
+  "name": "giosk",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "OBA Weekend-thon Giosk, one root project that orchestrates the internal A/B/C/D services.",
+  "scripts": {
+    "setup": "npm --prefix voice-adaptive-kiosk run setup",
+    "dev": "npm --prefix voice-adaptive-kiosk run run:all",
+    "run:all": "npm --prefix voice-adaptive-kiosk run run:all",
+    "stop": "bash voice-adaptive-kiosk/run.sh stop",
+    "health": "node scripts/root-env.mjs npm --prefix voice-adaptive-kiosk run health",
+    "prewarm:ggui": "node scripts/root-env.mjs npm --prefix voice-adaptive-kiosk run prewarm:ggui",
+    "probe:ggui": "node scripts/root-env.mjs npm --prefix voice-adaptive-kiosk run probe:ggui",
+    "screenshot": "node scripts/root-env.mjs npm --prefix voice-adaptive-kiosk run screenshot",
+    "test:root": "node --test tests/*.test.mjs",
+    "test:a": "cd voice-adaptive-kiosk/module-a && PYTHONPATH=. .venv/bin/python -m unittest discover -s tests -v",
+    "verify": "npm run test:root && npm --prefix voice-adaptive-kiosk run verify && npm run test:a"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

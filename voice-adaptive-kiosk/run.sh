@@ -23,6 +23,7 @@
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PARENT_ROOT="$(cd "${ROOT}/.." && pwd)"
 LOG_DIR="${ROOT}/.run-logs"
 mkdir -p "${LOG_DIR}"
 
@@ -50,7 +51,10 @@ load_env_file() {
   done < "${file}"
 }
 
-# 루트 env 하나만 로드한다. .env.local 이 .env 보다 우선.
+# repo 루트 env 를 우선 사용하고, 기존 app 루트 env 는 하위 호환으로만 읽는다.
+# .env.local 이 .env 보다 우선이고, 이미 export 된 셸 값은 덮어쓰지 않는다.
+load_env_file "${PARENT_ROOT}/.env.local"
+load_env_file "${PARENT_ROOT}/.env"
 load_env_file "${ROOT}/.env.local"
 load_env_file "${ROOT}/.env"
 
