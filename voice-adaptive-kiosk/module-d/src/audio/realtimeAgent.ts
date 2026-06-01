@@ -11,6 +11,8 @@ export interface AgentCallbacks {
   onUserTranscript?: (text: string) => void;
   /** 비서 음성 자막. done=false 는 누적 delta, done=true 는 최종 문장. */
   onAssistantText?: (text: string, done: boolean) => void;
+  /** 손님 발화가 감지되기 시작했을 때. */
+  onSpeechStarted?: () => void;
   onOpen?: () => void;
   onError?: (message: string) => void;
 }
@@ -25,6 +27,8 @@ export class RealtimeAgent {
   private greeted = false;
   private responseActive = false;
   private pendingTextTurn: string | null = null;
+  private handledFunctionCallIds = new Set<string>();
+  private sessionReady = false;
 
   constructor(
     private readonly menu: Menu,
@@ -75,7 +79,6 @@ export class RealtimeAgent {
       this.dc = dc;
       dc.addEventListener("open", () => {
         this.configureSession();
-        this.cbs.onOpen?.();
       });
       dc.addEventListener("message", (event) => void this.handleEvent(event.data));
 
@@ -121,6 +124,10 @@ export class RealtimeAgent {
   submitTextTurn(text: string): boolean {
     const trimmed = text.trim();
     if (!trimmed || !this.dc || this.dc.readyState !== "open") return false;
+    if (!this.sessionReady) {
+      this.pendingTextTurn = trimmed;
+      return true;
+    }
     if (this.responseActive || this.assistantBuf) {
       this.pendingTextTurn = trimmed;
       this.send({ type: "response.cancel" });
@@ -142,7 +149,7 @@ export class RealtimeAgent {
         content: [{ type: "input_text", text }],
       },
     });
-    this.send({ type: "response.create" });
+    this.requestResponse();
   }
 
   private configureSession(): void {
@@ -207,15 +214,24 @@ export class RealtimeAgent {
 
     switch (event.type) {
       case "session.updated":
+        this.sessionReady = true;
+        this.cbs.onOpen?.();
+        if (this.pendingTextTurn) {
+          const pending = this.pendingTextTurn;
+          this.pendingTextTurn = null;
+          this.sendTextTurn(pending);
+          break;
+        }
         if (!this.greeted) {
           this.greeted = true;
-          this.send({ type: "response.create" });
+          this.requestResponse();
         }
         break;
       case "response.created":
         this.responseActive = true;
         break;
       case "input_audio_buffer.speech_started":
+        this.cbs.onSpeechStarted?.();
         if (this.responseActive || this.assistantBuf) {
           this.send({ type: "response.cancel" });
           this.send({ type: "output_audio_buffer.clear" });
@@ -271,6 +287,11 @@ export class RealtimeAgent {
     callId: string,
     rawArguments: unknown,
   ): Promise<void> {
+    if (callId) {
+      if (this.handledFunctionCallIds.has(callId)) return;
+      this.handledFunctionCallIds.add(callId);
+    }
+
     let args: Record<string, any> = {};
     try {
       args = JSON.parse(String(rawArguments || "{}"));
@@ -293,6 +314,11 @@ export class RealtimeAgent {
         output: JSON.stringify(output),
       },
     });
+    this.requestResponse();
+  }
+
+  private requestResponse(): void {
+    this.responseActive = true;
     this.send({ type: "response.create" });
   }
 }

@@ -617,11 +617,12 @@ function ConfirmStep({
 
 function AgentCaptions({ state }: { state: FlowState }) {
   if (!state.conversational && !state.userTranscript && !state.assistantText) return null;
+  const listeningLabel = state.message.includes("연결 중") ? "연결 중" : state.message.includes("듣고 있어요") ? "듣는 중" : "대화 대기";
   return (
     <div className="agent-captions" aria-live="polite">
       <div className="agent-listening">
         <span className="listening-dot" />
-        계속 듣고 있어요
+        {listeningLabel}
       </div>
       {state.userTranscript && (
         <div className="agent-caption user">

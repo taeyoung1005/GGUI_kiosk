@@ -599,7 +599,7 @@ function VoiceOrderBanner({ onStartVoice }: { onStartVoice: () => void }) {
       <span className="voice-order-icon" aria-hidden="true">🎤</span>
       <span className="voice-order-text">
         <strong>음성으로 주문하기</strong>
-        <small>버튼을 누르고 메뉴를 말씀하시면 큰 화면으로 도와드려요</small>
+        <small>연결 후 "이제 말씀해 주세요"가 보이면 메뉴를 말씀해 주세요</small>
       </span>
     </button>
   );

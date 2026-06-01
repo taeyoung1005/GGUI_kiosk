@@ -3,7 +3,7 @@
 // 음성 주문 골든 플로우 스크린샷 e2e (Playwright, 헤드리스).
 // 마이크 없이 구동하기 위해 RTCPeerConnection 을 비활성화 → orchestrator 가
 // isRealtimeSupported()=false 로 보고 "데모 발화" 경로로 실제 백엔드+GGUI 흐름을 돈다.
-//   진입: .voice-order-banner 클릭 → "라떼 한 잔 주세요"(데모)
+//   진입: window.__giosk.startVoiceOrder() → "라떼 한 잔 주세요"(데모)
 //   진행: 적응화면의 "🎤 다시 말하기"(.multi-turn .mic-btn) 클릭 → step별 데모 발화
 // 결과: .run-logs/screenshots/*.png
 //
@@ -94,10 +94,10 @@ await page.goto(BASE, { waitUntil: "networkidle" });
 await page.waitForTimeout(1200);
 await shot("01-idle-kiosk");
 
-// 음성 주문 시작 (데모 발화 "라떼 한 잔 주세요")
-await page.click(".voice-order-banner", { timeout: 8000 }).catch(async () => {
-  await page.click(".static-bottom-bar .mic-btn", { timeout: 8000 }).catch(() => {});
-});
+// 음성 주문 시작 (데모 발화 "라떼 한 잔 주세요").
+// UI 버튼은 현재 대화형 Realtime 경로가 기본값이므로, 스크린샷 회귀 플로우는
+// deterministic 단계형 orchestrator 경로를 직접 호출한다.
+await page.evaluate(() => window.__giosk?.startVoiceOrder());
 await waitStable();
 let idx = 2;
 await shot(`${String(idx).padStart(2, "0")}-recommend`);

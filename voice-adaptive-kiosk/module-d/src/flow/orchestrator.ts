@@ -152,7 +152,7 @@ export class Orchestrator {
       candidates,
       phase: "adaptive",
       step: "recommend",
-      message: shouldStartAgent ? "연결 중이에요..." : "무엇을 도와드릴까요?",
+      message: shouldStartAgent ? "연결 중이에요. 아직 말씀하지 마세요." : "무엇을 도와드릴까요?",
       userTranscript: "",
       assistantText: "",
       conversational: true,
@@ -162,7 +162,8 @@ export class Orchestrator {
         onToolCall: (name, args) => this.runAgentTool(name, args),
         onUserTranscript: (transcript) => this.set({ userTranscript: transcript }),
         onAssistantText: (text) => this.set({ assistantText: text }),
-        onOpen: () => this.set({ message: "말씀해 주세요. 듣고 있어요." }),
+        onSpeechStarted: () => this.set({ message: "듣고 있어요. 말씀을 마치면 자동으로 처리해요." }),
+        onOpen: () => this.set({ message: "이제 말씀해 주세요. 듣고 있어요." }),
         onError: (message) => this.fail(message),
       });
       await this.agent.start();

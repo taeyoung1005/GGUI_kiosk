@@ -10,6 +10,7 @@ vi.mock("../api/client", () => ({
 interface PrivateRealtimeAgent {
   dc: { send: ReturnType<typeof vi.fn> } | null;
   assistantBuf: string;
+  sessionReady: boolean;
   configureSession: () => void;
   handleEvent: (raw: unknown) => Promise<void>;
 }
@@ -38,9 +39,11 @@ describe("RealtimeAgent event handling", () => {
 
   it("cancels assistant speech and clears output audio when the customer barges in", async () => {
     const onAssistantText = vi.fn();
+    const onSpeechStarted = vi.fn();
     const agent = new RealtimeAgent(sampleMenu, {
       onToolCall: vi.fn(),
       onAssistantText,
+      onSpeechStarted,
     });
     const send = vi.fn();
     const internals = privateAgent(agent);
@@ -57,6 +60,7 @@ describe("RealtimeAgent event handling", () => {
       { type: "output_audio_buffer.clear" },
     ]);
     expect(onAssistantText).toHaveBeenLastCalledWith("", true);
+    expect(onSpeechStarted).toHaveBeenCalledTimes(1);
     expect(internals.assistantBuf).toBe("");
   });
 
@@ -84,6 +88,7 @@ describe("RealtimeAgent event handling", () => {
     const send = vi.fn();
     const internals = privateAgent(agent);
     internals.dc = { send, readyState: "open" } as unknown as PrivateRealtimeAgent["dc"];
+    internals.sessionReady = true;
 
     agent.submitTextTurn("따뜻한 카페라떼 주세요");
 
@@ -105,6 +110,7 @@ describe("RealtimeAgent event handling", () => {
     const send = vi.fn();
     const internals = privateAgent(agent);
     internals.dc = { send, readyState: "open" } as unknown as PrivateRealtimeAgent["dc"];
+    internals.sessionReady = true;
 
     await internals.handleEvent(JSON.stringify({ type: "response.created" }));
     const accepted = agent.submitTextTurn("따뜻한 카페라떼 주세요");
@@ -126,6 +132,103 @@ describe("RealtimeAgent event handling", () => {
           type: "message",
           role: "user",
           content: [{ type: "input_text", text: "따뜻한 카페라떼 주세요" }],
+        },
+      },
+      { type: "response.create" },
+    ]);
+  });
+
+  it("queues a text turn after requesting the initial greeting but before response.created arrives", async () => {
+    const agent = new RealtimeAgent(sampleMenu, { onToolCall: vi.fn() });
+    const send = vi.fn();
+    const internals = privateAgent(agent);
+    internals.dc = { send, readyState: "open" } as unknown as PrivateRealtimeAgent["dc"];
+
+    await internals.handleEvent(JSON.stringify({ type: "session.updated" }));
+    const accepted = agent.submitTextTurn("따뜻한 카페라떼 주세요");
+
+    expect(accepted).toBe(true);
+    expect(send.mock.calls.map(([raw]) => JSON.parse(raw))).toEqual([
+      { type: "response.create" },
+      { type: "response.cancel" },
+      { type: "output_audio_buffer.clear" },
+    ]);
+
+    await internals.handleEvent(JSON.stringify({ type: "response.done" }));
+
+    expect(send.mock.calls.map(([raw]) => JSON.parse(raw))).toEqual([
+      { type: "response.create" },
+      { type: "response.cancel" },
+      { type: "output_audio_buffer.clear" },
+      {
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "따뜻한 카페라떼 주세요" }],
+        },
+      },
+      { type: "response.create" },
+    ]);
+  });
+
+  it("queues a text turn until session.updated has applied tools and instructions", async () => {
+    const agent = new RealtimeAgent(sampleMenu, { onToolCall: vi.fn() });
+    const send = vi.fn();
+    const internals = privateAgent(agent);
+    internals.dc = { send, readyState: "open" } as unknown as PrivateRealtimeAgent["dc"];
+
+    const accepted = agent.submitTextTurn("따뜻한 카페라떼 주세요");
+
+    expect(accepted).toBe(true);
+    expect(send).not.toHaveBeenCalled();
+
+    await internals.handleEvent(JSON.stringify({ type: "session.updated" }));
+
+    expect(send.mock.calls.map(([raw]) => JSON.parse(raw))).toEqual([
+      {
+        type: "conversation.item.create",
+        item: {
+          type: "message",
+          role: "user",
+          content: [{ type: "input_text", text: "따뜻한 카페라떼 주세요" }],
+        },
+      },
+      { type: "response.create" },
+    ]);
+  });
+
+  it("executes a realtime function call only once when duplicate completion events arrive", async () => {
+    const onToolCall = vi.fn(async () => ({ ok: true }));
+    const agent = new RealtimeAgent(sampleMenu, { onToolCall });
+    const send = vi.fn();
+    const internals = privateAgent(agent);
+    internals.dc = { send, readyState: "open" } as unknown as PrivateRealtimeAgent["dc"];
+
+    await internals.handleEvent(JSON.stringify({
+      type: "response.function_call_arguments.done",
+      call_id: "call_123",
+      name: "select_item",
+      arguments: "{\"item_id\":\"latte\"}",
+    }));
+    await internals.handleEvent(JSON.stringify({
+      type: "response.output_item.done",
+      item: {
+        type: "function_call",
+        call_id: "call_123",
+        name: "select_item",
+        arguments: "{\"item_id\":\"latte\"}",
+      },
+    }));
+
+    expect(onToolCall).toHaveBeenCalledTimes(1);
+    expect(send.mock.calls.map(([raw]) => JSON.parse(raw))).toEqual([
+      {
+        type: "conversation.item.create",
+        item: {
+          type: "function_call_output",
+          call_id: "call_123",
+          output: "{\"ok\":true}",
         },
       },
       { type: "response.create" },
